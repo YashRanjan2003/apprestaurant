@@ -65,7 +65,7 @@ export default function CartPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="font-semibold">{item.name}</h3>
-                  <p className="text-gray-600">${item.price.toFixed(2)}</p>
+                  <p className="text-gray-600">₹{item.price.toFixed(2)}</p>
                 </div>
                 <button
                   onClick={() => removeItem(item.id)}
@@ -92,7 +92,7 @@ export default function CartPage() {
                   +
                 </button>
                 <div className="ml-auto font-semibold">
-                  ${(item.price * item.quantity).toFixed(2)}
+                  ₹{(item.price * item.quantity).toFixed(2)}
                 </div>
               </div>
             </div>
@@ -104,7 +104,7 @@ export default function CartPage() {
         <div className="max-w-md mx-auto px-4 py-4">
           <div className="flex justify-between items-center mb-4">
             <span className="text-gray-600">Total</span>
-            <span className="text-xl font-semibold">${total.toFixed(2)}</span>
+            <span className="text-xl font-semibold">₹{total.toFixed(2)}</span>
           </div>
           <Link
             href="/checkout"

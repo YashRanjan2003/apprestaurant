@@ -209,13 +209,13 @@ export default function CheckoutPage() {
                   <span>
                     {item.quantity}x {item.name}
                   </span>
-                  <span>${(item.price * item.quantity).toFixed(2)}</span>
+                  <span>₹{(item.price * item.quantity).toFixed(2)}</span>
                 </div>
               ))}
               <div className="border-t pt-2 mt-2">
                 <div className="flex justify-between font-semibold">
                   <span>Total</span>
-                  <span>${total.toFixed(2)}</span>
+                  <span>₹{total.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -226,7 +226,7 @@ export default function CheckoutPage() {
             disabled={isProcessing}
             className="w-full bg-black text-white py-3 rounded-full font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isProcessing ? 'Processing...' : `Pay $${total.toFixed(2)}`}
+            {isProcessing ? 'Processing...' : `Pay ₹${total.toFixed(2)}`}
           </button>
         </form>
       </main>

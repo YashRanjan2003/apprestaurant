@@ -593,8 +593,11 @@ video {
 .bottom-14 {
   bottom: 3.5rem;
 }
-.bottom-20 {
-  bottom: 5rem;
+.bottom-32 {
+  bottom: 8rem;
+}
+.bottom-8 {
+  bottom: 2rem;
 }
 .left-0 {
   left: 0px;
@@ -1127,6 +1130,9 @@ video {
 }
 .duration-200 {
   transition-duration: 200ms;
+}
+.duration-300 {
+  transition-duration: 300ms;
 }
 .ease-out {
   transition-timing-function: cubic-bezier(0, 0, 0.2, 1);

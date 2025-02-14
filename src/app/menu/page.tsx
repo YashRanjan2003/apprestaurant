@@ -218,7 +218,9 @@ export default function MenuPage() {
       </main>
 
       {/* Categories Quick Navigation */}
-      <div className="fixed bottom-20 right-4 z-20">
+      <div className={`fixed right-4 z-20 transition-all duration-300 ${
+        itemCount > 0 ? 'bottom-32' : 'bottom-8'
+      }`}>
         <button
           onClick={() => {
             if (showCategories && !isClosing) {
