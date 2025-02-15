@@ -9,17 +9,30 @@ interface CartItem {
   quantity: number;
 }
 
+interface CartTotals {
+  itemTotal: number;
+  gst: number;
+  platformFee: number;
+  deliveryCharge: number;
+  finalTotal: number;
+}
+
 interface CartContextType {
   items: CartItem[];
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
-  total: number;
   itemCount: number;
+  calculateTotals: () => CartTotals;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
+
+const PLATFORM_FEE = 15.00;
+const DELIVERY_CHARGE = 40.00;
+const FREE_DELIVERY_THRESHOLD = 500.00;
+const GST_RATE = 0.05; // 5%
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -75,10 +88,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems([]);
   };
 
-  const total = items.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
+  const calculateTotals = (): CartTotals => {
+    const itemTotal = items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+    
+    const gst = itemTotal * GST_RATE;
+    const platformFee = PLATFORM_FEE;
+    const deliveryCharge = itemTotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_CHARGE;
+    const finalTotal = itemTotal + gst + platformFee + deliveryCharge;
+
+    return {
+      itemTotal,
+      gst,
+      platformFee,
+      deliveryCharge,
+      finalTotal
+    };
+  };
 
   const itemCount = items.reduce(
     (count, item) => count + item.quantity,
@@ -93,8 +121,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         removeItem,
         updateQuantity,
         clearCart,
-        total,
         itemCount,
+        calculateTotals,
       }}
     >
       {children}

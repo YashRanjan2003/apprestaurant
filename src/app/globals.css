@@ -2,29 +2,61 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hero Image Animation */
+.hero-image-container {
+  animation: heroAnimation 30s ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+
+@keyframes heroAnimation {
+  0% {
+    transform: scale(1.05) rotate(0deg);
+    filter: brightness(1);
+  }
+  25% {
+    transform: scale(1.1) rotate(0.5deg);
+    filter: brightness(1.05);
+  }
+  50% {
+    transform: scale(1.08) rotate(-0.5deg);
+    filter: brightness(1);
+  }
+  75% {
+    transform: scale(1.12) rotate(0.25deg);
+    filter: brightness(1.05);
+  }
+  100% {
+    transform: scale(1.05) rotate(0deg);
+    filter: brightness(1);
+  }
+}
+
 /* Vignette Effect */
 .vignette-overlay {
   background: radial-gradient(
     circle at center,
     transparent 0%,
-    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 0.2) 40%,
     rgba(0, 0, 0, 0.7) 100%
   );
-  animation: fadeIn 1s ease-out;
+  animation: fadeIn 2s ease-in-out;
 }
 
 /* Animations */
 @keyframes fadeIn {
-  from {
+  0% {
     opacity: 0;
+    transform: scale(1.02);
   }
-  to {
+  100% {
     opacity: 1;
+    transform: scale(1);
   }
 }
 
 .animate-fade-in {
-  animation: fadeIn 1s ease-out forwards;
+  animation: fadeIn 1.5s ease-in-out forwards;
 }
 
 .delay-200 {

@@ -8,13 +8,17 @@ import { useAuth } from '@/lib/context/AuthContext';
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, total, clearCart } = useCart();
+  const { items, clearCart, calculateTotals } = useCart();
   const { user, isLoading: authLoading } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderType, setOrderType] = useState<'pickup' | 'delivery'>('pickup');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
+  const [customTime, setCustomTime] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('card');
+
+  // Calculate totals
+  const totals = calculateTotals();
 
   useEffect(() => {
     // First check if we have items in the cart
@@ -63,10 +67,10 @@ export default function CheckoutPage() {
 
       const orderDetails = {
         items,
-        total,
+        ...totals, // Include all the price breakdowns
         orderType,
         deliveryAddress: orderType === 'delivery' ? deliveryAddress : null,
-        scheduledTime: scheduledTime || 'ASAP',
+        scheduledTime: scheduledTime === 'other' ? customTime : (scheduledTime || 'ASAP'),
         paymentMethod,
         otp: generateOTP(),
         userId: user?.id,
@@ -155,12 +159,17 @@ export default function CheckoutPage() {
           {/* Scheduled Time */}
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <label htmlFor="time" className="block text-sm font-medium text-gray-700 mb-1">
-              Pickup/Delivery Time
+              {orderType === 'pickup' ? 'Pickup' : 'Delivery'} Time
             </label>
             <select
               id="time"
               value={scheduledTime}
-              onChange={(e) => setScheduledTime(e.target.value)}
+              onChange={(e) => {
+                setScheduledTime(e.target.value);
+                if (e.target.value !== 'other') {
+                  setCustomTime('');
+                }
+              }}
               className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
             >
               <option value="">ASAP</option>
@@ -168,7 +177,25 @@ export default function CheckoutPage() {
               <option value="60">In 1 hour</option>
               <option value="90">In 1.5 hours</option>
               <option value="120">In 2 hours</option>
+              <option value="other">Other</option>
             </select>
+            
+            {scheduledTime === 'other' && (
+              <div className="mt-2">
+                <input
+                  type="time"
+                  value={customTime}
+                  onChange={(e) => setCustomTime(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
+                  required
+                  min={new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}
+                  max="23:59"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Please select a time today between {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} and 11:59 PM
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Payment Method */}
@@ -212,10 +239,30 @@ export default function CheckoutPage() {
                   <span>₹{(item.price * item.quantity).toFixed(2)}</span>
                 </div>
               ))}
-              <div className="border-t pt-2 mt-2">
-                <div className="flex justify-between font-semibold">
+              <div className="border-t pt-2 mt-2 space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Item Total</span>
+                  <span>₹{totals.itemTotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">GST (5%)</span>
+                  <span>₹{totals.gst.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Platform Fee</span>
+                  <span>₹{totals.platformFee.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Delivery Charge</span>
+                  {totals.itemTotal >= 500 ? (
+                    <span className="text-green-600">Free</span>
+                  ) : (
+                    <span>₹{totals.deliveryCharge.toFixed(2)}</span>
+                  )}
+                </div>
+                <div className="flex justify-between font-semibold pt-2 border-t">
                   <span>Total</span>
-                  <span>₹{total.toFixed(2)}</span>
+                  <span>₹{totals.finalTotal.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -226,7 +273,7 @@ export default function CheckoutPage() {
             disabled={isProcessing}
             className="w-full bg-black text-white py-3 rounded-full font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isProcessing ? 'Processing...' : `Pay ₹${total.toFixed(2)}`}
+            {isProcessing ? 'Processing...' : `Pay ₹${totals.finalTotal.toFixed(2)}`}
           </button>
         </form>
       </main>

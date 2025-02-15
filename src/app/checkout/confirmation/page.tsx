@@ -10,7 +10,11 @@ interface OrderDetails {
     quantity: number;
     price: number;
   }>;
-  total: number;
+  itemTotal: number;
+  gst: number;
+  platformFee: number;
+  deliveryCharge: number;
+  finalTotal: number;
   orderType: 'pickup' | 'delivery';
   deliveryAddress: string | null;
   scheduledTime: string;
@@ -161,9 +165,9 @@ export default function ConfirmationPage() {
             </div>
           )}
 
-          {/* Order Details */}
-          <div className="bg-white rounded-lg p-4 shadow-sm">
-            <h3 className="font-semibold mb-3">Order Summary</h3>
+          {/* Order Items */}
+          <div className="bg-white rounded-lg p-6 shadow-sm">
+            <h2 className="font-semibold mb-4">Order Items</h2>
             <div className="space-y-2">
               {order.items.map((item) => (
                 <div key={item.id} className="flex justify-between text-sm">
@@ -173,10 +177,30 @@ export default function ConfirmationPage() {
                   <span>₹{(item.price * item.quantity).toFixed(2)}</span>
                 </div>
               ))}
-              <div className="border-t pt-2 mt-2">
-                <div className="flex justify-between font-semibold">
+              <div className="border-t pt-2 mt-2 space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Item Total</span>
+                  <span>₹{order.itemTotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">GST (5%)</span>
+                  <span>₹{order.gst.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Platform Fee</span>
+                  <span>₹{order.platformFee.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Delivery Charge</span>
+                  {order.itemTotal >= 500 ? (
+                    <span className="text-green-600">Free</span>
+                  ) : (
+                    <span>₹{order.deliveryCharge.toFixed(2)}</span>
+                  )}
+                </div>
+                <div className="flex justify-between font-semibold pt-2 border-t">
                   <span>Total</span>
-                  <span>₹{order.total.toFixed(2)}</span>
+                  <span>₹{order.finalTotal.toFixed(2)}</span>
                 </div>
               </div>
             </div>
