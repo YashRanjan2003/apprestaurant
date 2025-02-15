@@ -27,12 +27,10 @@ interface OrderDetails {
 export default function TrackOrderPage() {
   const [otp, setOtp] = useState('');
   const [order, setOrder] = useState<OrderDetails | null>(null);
-  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setIsLoading(true);
 
     // Simulate API call delay
@@ -40,21 +38,18 @@ export default function TrackOrderPage() {
       try {
         const savedOrder = localStorage.getItem('lastOrder');
         if (!savedOrder) {
-          setError('No order found with this code');
           setOrder(null);
           return;
         }
 
         const orderDetails = JSON.parse(savedOrder);
         if (orderDetails.otp !== otp) {
-          setError('Invalid order code');
           setOrder(null);
           return;
         }
 
         setOrder(orderDetails);
-      } catch (error) {
-        setError('Failed to fetch order details');
+      } catch (err) {
         setOrder(null);
       } finally {
         setIsLoading(false);
@@ -95,9 +90,6 @@ export default function TrackOrderPage() {
                   required
                   pattern="[0-9]{6}"
                 />
-                {error && (
-                  <p className="mt-2 text-red-600 text-sm">{error}</p>
-                )}
                 <button
                   type="submit"
                   disabled={isLoading || otp.length !== 6}

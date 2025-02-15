@@ -8,8 +8,6 @@ export default function CartPage() {
   const { items, removeItem, updateQuantity, calculateTotals, clearCart } = useCart();
   const [couponCode, setCouponCode] = useState('');
   const [showCouponInput, setShowCouponInput] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
 
   // Get all totals
   const { itemTotal, gst, platformFee, deliveryCharge, finalTotal } = calculateTotals();
