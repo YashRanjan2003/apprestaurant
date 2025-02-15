@@ -49,7 +49,7 @@ export default function TrackOrderPage() {
         }
 
         setOrder(orderDetails);
-      } catch (err) {
+      } catch (_err) {
         setOrder(null);
       } finally {
         setIsLoading(false);
