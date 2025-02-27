@@ -1,0 +1,135 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for both customers and admins
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  phone     String
+  email     String?
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// Menu item model
+model MenuItem {
+  id            String      @id
+  name          String
+  description   String
+  price         Float
+  category      String
+  imageUrl      String
+  isVeg         Boolean     @default(false)
+  rating        Float?
+  ratingCount   Int         @default(0)
+  originalPrice Float?
+  offer         String?
+  isAvailable   Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  orderItems    OrderItem[]
+}
+
+// Order model
+model Order {
+  id              String        @id @default(cuid())
+  user            User          @relation(fields: [userId], references: [id])
+  userId          String
+  items           OrderItem[]
+  status          OrderStatus   @default(PENDING)
+  orderType       OrderType
+  deliveryAddress String?
+  scheduledTime   String
+  paymentMethod   PaymentType
+  paymentStatus   PaymentStatus @default(PENDING)
+  otp            String
+  itemTotal      Float
+  gst            Float
+  platformFee    Float
+  deliveryCharge Float
+  finalTotal     Float
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+// Order item model (for items in an order)
+model OrderItem {
+  id         String   @id @default(cuid())
+  order      Order    @relation(fields: [orderId], references: [id])
+  orderId    String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  menuItemId String
+  quantity   Int
+  price      Float
+}
+
+// Discount model
+model Discount {
+  id                  String       @id @default(cuid())
+  code               String       @unique
+  type               DiscountType
+  value              Float
+  minOrderValue      Float?
+  maxDiscount        Float?
+  validFrom          DateTime
+  validUntil         DateTime
+  description        String
+  isActive           Boolean      @default(true)
+  usageLimit         Int?
+  usageCount         Int          @default(0)
+  applicableCategories String[]
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderType {
+  PICKUP
+  DELIVERY
+}
+
+enum PaymentType {
+  CARD
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+  BOGO
+}

@@ -7,6 +7,7 @@ interface User {
   username: string;
   phone: string;
   email?: string;
+  role: 'user' | 'admin';
 }
 
 interface AuthContextType {
@@ -43,10 +44,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // In a real app, you would validate credentials with your backend
+      // For demo, set admin role if username includes 'admin'
       const mockUser: User = {
         id: '1',
         username: credentials.username,
         phone: '1234567890',
+        role: credentials.username.toLowerCase().includes('admin') ? 'admin' : 'user',
       };
       
       setUser(mockUser);
@@ -71,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         username: userData.username,
         phone: userData.phone,
         email: userData.email,
+        role: 'user', // New users are always regular users
       };
       
       setUser(mockUser);
