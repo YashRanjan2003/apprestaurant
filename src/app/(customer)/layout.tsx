@@ -15,7 +15,7 @@ export default function CustomerLayout({
   const { finalTotal } = calculateTotals();
 
   // Hide cart button on cart and checkout pages
-  const hideCartButton = pathname === '/cart' || pathname === '/checkout';
+  const hideCartButton = pathname === '/(customer)/cart' || pathname === '/(customer)/checkout';
 
   return (
     <div className="min-h-screen bg-white relative">
@@ -29,7 +29,7 @@ export default function CustomerLayout({
         <div className="fixed bottom-6 left-0 right-0 px-4 z-50">
           <div className="max-w-md mx-auto">
             <Link
-              href="/cart"
+              href="/(customer)/cart"
               className="bg-black text-white px-4 py-3 rounded-full flex items-center justify-between shadow-lg"
             >
               <div className="flex items-center space-x-2">
