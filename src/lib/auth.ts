@@ -2,9 +2,19 @@ import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { prisma } from './prisma';
 import bcrypt from 'bcryptjs';
-import { User as PrismaUser } from '@prisma/client';
 
-type UserWithoutPassword = Omit<PrismaUser, 'password'>;
+interface User {
+  id: string;
+  username: string;
+  password: string;
+  phone: string;
+  email?: string | null;
+  role: 'USER' | 'ADMIN';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+type UserWithoutPassword = Omit<User, 'password'>;
 
 // Extend the built-in session types
 declare module 'next-auth' {
@@ -51,7 +61,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Invalid password');
         }
 
-        const { password, ...userWithoutPassword } = user;
+        const { password: _password, ...userWithoutPassword } = user;
         return userWithoutPassword;
       }
     })

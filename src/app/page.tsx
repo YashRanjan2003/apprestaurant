@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useCart } from '@/lib/context/CartContext';
+import Image from 'next/image';
 
 interface MenuItem {
   id: string;
@@ -19,10 +19,9 @@ interface MenuItem {
 }
 
 export default function HomePage() {
-  const [featuredItems, setFeaturedItems] = useState<MenuItem[]>([]);
+  const [_featuredItems, setFeaturedItems] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { addItem } = useCart();
 
   useEffect(() => {
     fetchFeaturedItems();
@@ -65,10 +64,12 @@ export default function HomePage() {
         {/* Hero Section */}
         <div className="relative h-screen">
           <div className="absolute inset-0 hero-image-container">
-            <img
+            <Image
               src="/assets/images/hero.jpg"
               alt="Restaurant Food"
               className="w-full h-full object-cover brightness-50"
+              fill
+              priority
             />
             <div className="absolute inset-0 bg-gradient-to-b from-black/50 to-transparent" />
           </div>
@@ -78,10 +79,13 @@ export default function HomePage() {
             <div className="mt-16 text-center animate-fade-in">
               <h1 className="text-4xl font-bold mb-4">
                 <span className="text-2xl opacity-90">Welcome to</span>
-                <img 
+                <Image 
                   src="/assets/images/currypoorilogo.png" 
                   alt="CurryPoori" 
                   className="h-24 mx-auto my-4"
+                  width={200}
+                  height={96}
+                  priority
                 />
               </h1>
               <p className="text-lg opacity-90 delay-200">

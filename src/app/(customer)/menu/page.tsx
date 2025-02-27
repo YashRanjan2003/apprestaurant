@@ -21,13 +21,6 @@ interface MenuItem {
   isAvailable?: boolean;
 }
 
-interface VirtualItem {
-  index: number;
-  start: number;
-  size: number;
-  key: string | number;
-}
-
 async function fetchMenuItems(): Promise<MenuItem[]> {
   const res = await fetch('/api/menu');
   if (!res.ok) throw new Error('Failed to fetch menu items');
@@ -44,7 +37,7 @@ export default function MenuPage() {
   const [error, setError] = useState<Error | null>(null);
   const { addItem, items: cartItems, updateQuantity, calculateTotals, removeItem } = useCart();
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const observerRef = useRef<IntersectionObserver | null>(null);
+  const _observerRef = useRef<IntersectionObserver>();
   const parentRef = useRef<HTMLDivElement>(null);
 
   // Fetch menu items
@@ -65,40 +58,30 @@ export default function MenuPage() {
 
   // Setup intersection observer for category headers
   useEffect(() => {
-    if (!categoryRefs.current) return;
-
-    const options = {
-      rootMargin: '-20% 0px -80% 0px',
-      threshold: 0
-    };
-
     const callback: IntersectionObserverCallback = (entries) => {
-      entries.forEach(entry => {
+      entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          const category = entry.target.getAttribute('data-category');
-          if (category) {
-            setSelectedCategory(category);
+          const categoryId = entry.target.getAttribute('data-category');
+          if (categoryId) {
+            setSelectedCategory(categoryId);
           }
         }
       });
     };
 
-    observerRef.current = new IntersectionObserver(callback, options);
+    const observer = new IntersectionObserver(callback, {
+      rootMargin: '-50% 0px',
+      threshold: 0,
+    });
 
-    // Observe all category headers
-    Object.entries(categoryRefs.current).forEach(([category, element]) => {
+    Object.entries(categoryRefs.current).forEach(([_, element]) => {
       if (element) {
-        element.setAttribute('data-category', category);
-        observerRef.current?.observe(element);
+        observer.observe(element);
       }
     });
 
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
-  }, [categoryRefs.current]);
+    return () => observer.disconnect();
+  }, []);
 
   // Memoized values
   const categories = useMemo(() => {
@@ -256,7 +239,7 @@ export default function MenuPage() {
         className="relative"
         style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
       >
-        {rowVirtualizer.getVirtualItems().map((virtualRow: VirtualItem) => {
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
           const category = categories[virtualRow.index];
           const categoryItems = itemsByCategory[category];
 

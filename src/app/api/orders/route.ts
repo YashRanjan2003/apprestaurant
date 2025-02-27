@@ -3,6 +3,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+interface OrderItemInput {
+  menuItemId: string;
+  quantity: number;
+  price: number;
+}
+
 const orderInclude = {
   items: {
     include: {
@@ -88,7 +94,7 @@ export async function POST(request: Request) {
         deliveryCharge: data.deliveryCharge,
         finalTotal: data.finalTotal,
         items: {
-          create: data.items.map((item: any) => ({
+          create: data.items.map((item: OrderItemInput) => ({
             menuItemId: item.menuItemId,
             quantity: item.quantity,
             price: item.price,

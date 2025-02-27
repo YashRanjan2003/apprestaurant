@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 
 type DiscountType = 'PERCENTAGE' | 'FIXED' | 'BOGO';
 
@@ -27,7 +26,7 @@ export default function DiscountsManagement() {
   const [isEditing, setIsEditing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [_error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<Partial<Discount>>({
     code: '',
