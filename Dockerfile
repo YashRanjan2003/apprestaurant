@@ -26,6 +26,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
 COPY . .
 
+# Create .env file for build time
+RUN touch .env
+
 # Generate Prisma Client
 RUN npx prisma generate
 
@@ -67,5 +70,26 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-# Add prisma generate to startup command
-CMD ["sh", "-c", "npx prisma generate && node server.js"] 
+# Create a script to handle startup
+COPY --chown=nextjs:nodejs <<EOF /app/start.sh
+#!/bin/sh
+# Wait for database to be ready
+echo "Waiting for database..."
+sleep 5
+
+# Run migrations
+echo "Running database migrations..."
+npx prisma migrate deploy
+
+# Generate Prisma Client
+echo "Generating Prisma Client..."
+npx prisma generate
+
+# Start the application
+echo "Starting the application..."
+node server.js
+EOF
+
+RUN chmod +x /app/start.sh
+
+CMD ["/app/start.sh"] 

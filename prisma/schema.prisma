@@ -10,123 +10,33 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model for both customers and admins
 model User {
-  id        String   @id @default(cuid())
-  username  String   @unique
-  password  String
-  phone     String
-  email     String?
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  orders    Order[]
+  id        String     @id @default(uuid())
+  email     String     @unique
+  name      String?
+  favorites Favorite[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
-enum Role {
-  USER
-  ADMIN
+model Restaurant {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  imageUrl    String?
+  favorites   Favorite[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 }
 
-// Menu item model
-model MenuItem {
-  id            String      @id
-  name          String
-  description   String
-  price         Float
-  category      String
-  imageUrl      String
-  isVeg         Boolean     @default(false)
-  rating        Float?
-  ratingCount   Int         @default(0)
-  originalPrice Float?
-  offer         String?
-  isAvailable   Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  orderItems    OrderItem[]
-}
+model Favorite {
+  id           String     @id @default(uuid())
+  user         User       @relation(fields: [userId], references: [id])
+  userId       String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  restaurantId String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
-// Order model
-model Order {
-  id              String        @id @default(cuid())
-  user            User          @relation(fields: [userId], references: [id])
-  userId          String
-  items           OrderItem[]
-  status          OrderStatus   @default(PENDING)
-  orderType       OrderType
-  deliveryAddress String?
-  scheduledTime   String
-  paymentMethod   PaymentType
-  paymentStatus   PaymentStatus @default(PENDING)
-  otp            String
-  itemTotal      Float
-  gst            Float
-  platformFee    Float
-  deliveryCharge Float
-  finalTotal     Float
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-}
-
-// Order item model (for items in an order)
-model OrderItem {
-  id         String   @id @default(cuid())
-  order      Order    @relation(fields: [orderId], references: [id])
-  orderId    String
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
-  menuItemId String
-  quantity   Int
-  price      Float
-}
-
-// Discount model
-model Discount {
-  id                  String       @id @default(cuid())
-  code               String       @unique
-  type               DiscountType
-  value              Float
-  minOrderValue      Float?
-  maxDiscount        Float?
-  validFrom          DateTime
-  validUntil         DateTime
-  description        String
-  isActive           Boolean      @default(true)
-  usageLimit         Int?
-  usageCount         Int          @default(0)
-  applicableCategories String[]
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-}
-
-enum OrderStatus {
-  PENDING
-  CONFIRMED
-  PREPARING
-  READY
-  OUT_FOR_DELIVERY
-  DELIVERED
-  CANCELLED
-}
-
-enum OrderType {
-  PICKUP
-  DELIVERY
-}
-
-enum PaymentType {
-  CARD
-  CASH
-}
-
-enum PaymentStatus {
-  PENDING
-  COMPLETED
-  FAILED
-}
-
-enum DiscountType {
-  PERCENTAGE
-  FIXED
-  BOGO
+  @@unique([userId, restaurantId])
 } 
