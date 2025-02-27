@@ -3,21 +3,30 @@ FROM node:18-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat openssl
+
 WORKDIR /app
 
-# Copy package files
+# Copy package files and prisma schema
 COPY package.json package-lock.json* ./
-RUN npm ci
+COPY prisma ./prisma/
+
+# First install dependencies without running scripts
+RUN npm ci --ignore-scripts
+
+# Then generate Prisma client
+RUN npx prisma generate
 
 # Builder stage
 FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+RUN apk add --no-cache libc6-compat openssl
 
-# Generate Prisma Client
-RUN npx prisma generate
+WORKDIR /app
+
+# Copy all dependencies and generated files
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma ./prisma
+COPY . .
 
 # Build Next.js
 ENV NEXT_TELEMETRY_DISABLED 1
@@ -25,6 +34,8 @@ RUN npm run build
 
 # Production image
 FROM base AS runner
+RUN apk add --no-cache libc6-compat openssl
+
 WORKDIR /app
 
 ENV NODE_ENV production
@@ -33,18 +44,16 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Copy necessary files
 COPY --from=builder /app/public ./public
-
-# Set the correct permission for prerender cache
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
-
-# Automatically leverage output traces to reduce image size
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Copy Prisma schema and migrations
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
+# Set permissions
+RUN chown -R nextjs:nodejs .
 
 USER nextjs
 
@@ -53,4 +62,15 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-CMD ["node", "server.js"] 
+# Create startup script
+RUN echo '#!/bin/sh\n\
+echo "Waiting for database..."\n\
+sleep 5\n\
+echo "Running database migrations..."\n\
+npx prisma migrate deploy\n\
+echo "Starting the application..."\n\
+node server.js' > /app/start.sh
+
+RUN chmod +x /app/start.sh
+
+CMD ["/app/start.sh"] 
