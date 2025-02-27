@@ -3,17 +3,27 @@ FROM node:18-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
+# Add OpenSSL and other necessary dependencies
+RUN apk add --no-cache libc6-compat openssl
+
 WORKDIR /app
 
-# Copy package files
+# Copy package files and prisma directory
 COPY package.json package-lock.json* ./
+COPY prisma ./prisma/
+
+# Install dependencies
 RUN npm ci
 
 # Builder stage
 FROM base AS builder
 WORKDIR /app
+
+# Add OpenSSL for this stage too
+RUN apk add --no-cache openssl
+
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma ./prisma
 COPY . .
 
 # Generate Prisma Client
@@ -30,10 +40,16 @@ WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 
+# Add OpenSSL for production
+RUN apk add --no-cache openssl
+
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Copy necessary files
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 # Set the correct permission for prerender cache
 RUN mkdir .next
@@ -43,9 +59,6 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy Prisma schema and migrations
-COPY --from=builder /app/prisma ./prisma
-
 USER nextjs
 
 EXPOSE 3000
@@ -53,4 +66,5 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-CMD ["node", "server.js"] 
+# Add prisma generate to startup command
+CMD ["sh", "-c", "npx prisma generate && node server.js"] 

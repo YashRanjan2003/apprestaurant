@@ -1,14 +1,17 @@
 import { PrismaClient, Role, DiscountType } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+
 const prisma = new PrismaClient();
 
 async function main() {
   // Create or update admin user
+  const hashedPassword = await bcrypt.hash('admin123', 10);
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
     update: {},
     create: {
       username: 'admin',
-      password: 'admin123', // In production, this should be hashed
+      password: hashedPassword,
       phone: '+1234567890',
       email: 'admin@restaurant.com',
       role: Role.ADMIN,
@@ -54,25 +57,6 @@ async function main() {
     },
   });
 
-  const paneerTikka = await prisma.menuItem.upsert({
-    where: { id: 'paneer-tikka' },
-    update: {},
-    create: {
-      id: 'paneer-tikka',
-      name: 'Paneer Tikka',
-      description: 'Grilled cottage cheese with spices',
-      price: 10.99,
-      category: 'Starters',
-      imageUrl: '/images/paneer-tikka.jpg',
-      isVeg: true,
-      rating: 4.4,
-      ratingCount: 80,
-      originalPrice: 12.99,
-      offer: '15% off',
-      isAvailable: true,
-    },
-  });
-
   // Create or update discount codes
   const welcomeDiscount = await prisma.discount.upsert({
     where: { code: 'WELCOME50' },
@@ -89,26 +73,7 @@ async function main() {
       isActive: true,
       usageLimit: 1000,
       usageCount: 0,
-      applicableCategories: ['South Indian', 'Main Course', 'Starters'],
-    },
-  });
-
-  const flat100 = await prisma.discount.upsert({
-    where: { code: 'FLAT100' },
-    update: {},
-    create: {
-      code: 'FLAT100',
-      type: DiscountType.FIXED,
-      value: 100,
-      minOrderValue: 500,
-      maxDiscount: 100,
-      validFrom: new Date(),
-      validUntil: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 days from now
-      description: 'Get ₹100 off on orders above ₹500',
-      isActive: true,
-      usageLimit: 500,
-      usageCount: 0,
-      applicableCategories: ['All'],
+      applicableCategories: ['South Indian', 'Main Course'],
     },
   });
 
@@ -117,11 +82,9 @@ async function main() {
     menuItems: {
       masalaDosa,
       butterChicken,
-      paneerTikka,
     },
     discounts: {
       welcomeDiscount,
-      flat100,
     },
   });
 }
