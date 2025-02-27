@@ -1,83 +1,91 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Role, DiscountType } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Create test users
-  const user1 = await prisma.user.upsert({
-    where: { email: 'test1@example.com' },
+  // Create or update admin user
+  const hashedPassword = await bcrypt.hash('admin123', 10);
+  const admin = await prisma.user.upsert({
+    where: { username: 'admin' },
     update: {},
     create: {
-      email: 'test1@example.com',
-      name: 'Test User 1',
+      username: 'admin',
+      password: hashedPassword,
+      phone: '+1234567890',
+      email: 'admin@restaurant.com',
+      role: Role.ADMIN,
     },
   });
 
-  const user2 = await prisma.user.upsert({
-    where: { email: 'test2@example.com' },
+  // Create or update menu items
+  const masalaDosa = await prisma.menuItem.upsert({
+    where: { id: 'masala-dosa' },
     update: {},
     create: {
-      email: 'test2@example.com',
-      name: 'Test User 2',
+      id: 'masala-dosa',
+      name: 'Masala Dosa',
+      description: 'Crispy rice crepe filled with spiced potato mixture',
+      price: 8.99,
+      category: 'South Indian',
+      imageUrl: '/images/masala-dosa.jpg',
+      isVeg: true,
+      rating: 4.5,
+      ratingCount: 100,
+      originalPrice: 10.99,
+      offer: '20% off',
+      isAvailable: true,
     },
   });
 
-  // Create restaurants
-  const restaurant1 = await prisma.restaurant.upsert({
-    where: { id: 'rest-1' },
+  const butterChicken = await prisma.menuItem.upsert({
+    where: { id: 'butter-chicken' },
     update: {},
     create: {
-      id: 'rest-1',
-      name: 'The Spice Garden',
-      description: 'Authentic Indian cuisine with a modern twist',
-      imageUrl: 'https://example.com/spice-garden.jpg',
+      id: 'butter-chicken',
+      name: 'Butter Chicken',
+      description: 'Tender chicken in rich tomato and butter gravy',
+      price: 12.99,
+      category: 'Main Course',
+      imageUrl: '/images/butter-chicken.jpg',
+      isVeg: false,
+      rating: 4.7,
+      ratingCount: 150,
+      originalPrice: 14.99,
+      offer: '15% off',
+      isAvailable: true,
     },
   });
 
-  const restaurant2 = await prisma.restaurant.upsert({
-    where: { id: 'rest-2' },
+  // Create or update discount codes
+  const welcomeDiscount = await prisma.discount.upsert({
+    where: { code: 'WELCOME50' },
     update: {},
     create: {
-      id: 'rest-2',
-      name: 'Sushi Master',
-      description: 'Premium Japanese sushi and sashimi',
-      imageUrl: 'https://example.com/sushi-master.jpg',
-    },
-  });
-
-  // Create some favorite relationships
-  const favorite1 = await prisma.favorite.upsert({
-    where: {
-      userId_restaurantId: {
-        userId: user1.id,
-        restaurantId: restaurant1.id,
-      },
-    },
-    update: {},
-    create: {
-      userId: user1.id,
-      restaurantId: restaurant1.id,
-    },
-  });
-
-  const favorite2 = await prisma.favorite.upsert({
-    where: {
-      userId_restaurantId: {
-        userId: user2.id,
-        restaurantId: restaurant2.id,
-      },
-    },
-    update: {},
-    create: {
-      userId: user2.id,
-      restaurantId: restaurant2.id,
+      code: 'WELCOME50',
+      type: DiscountType.PERCENTAGE,
+      value: 50,
+      minOrderValue: 20,
+      maxDiscount: 100,
+      validFrom: new Date(),
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      description: 'Get 50% off on your first order',
+      isActive: true,
+      usageLimit: 1000,
+      usageCount: 0,
+      applicableCategories: ['South Indian', 'Main Course'],
     },
   });
 
   console.log({
-    users: [user1, user2],
-    restaurants: [restaurant1, restaurant2],
-    favorites: [favorite1, favorite2],
+    admin,
+    menuItems: {
+      masalaDosa,
+      butterChicken,
+    },
+    discounts: {
+      welcomeDiscount,
+    },
   });
 }
 
