@@ -1,4 +1,4 @@
-import { PrismaClient, Role, DiscountType } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -14,7 +14,7 @@ async function main() {
       password: hashedPassword,
       phone: '+1234567890',
       email: 'admin@restaurant.com',
-      role: Role.ADMIN,
+      role: 'ADMIN',
     },
   });
 
@@ -63,7 +63,7 @@ async function main() {
     update: {},
     create: {
       code: 'WELCOME50',
-      type: DiscountType.PERCENTAGE,
+      type: 'PERCENTAGE',
       value: 50,
       minOrderValue: 20,
       maxDiscount: 100,

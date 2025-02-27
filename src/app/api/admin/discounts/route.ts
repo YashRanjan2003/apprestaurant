@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { DiscountType } from '@prisma/client';
+
+type DiscountType = 'PERCENTAGE' | 'FIXED' | 'BOGO';
 
 // GET all discounts
 export async function GET() {

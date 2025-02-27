@@ -21,7 +21,7 @@ interface MenuItem {
 }
 
 export default function MenuManagement() {
-  const router = useRouter();
+  const _router = useRouter();
   const [items, setItems] = useState<MenuItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [isEditing, setIsEditing] = useState(false);

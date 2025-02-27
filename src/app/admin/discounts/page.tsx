@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { DiscountType } from '@prisma/client';
+import { useRouter } from 'next/navigation';
+
+type DiscountType = 'PERCENTAGE' | 'FIXED' | 'BOGO';
 
 interface Discount {
   id: string;
@@ -55,9 +57,9 @@ export default function DiscountsManagement() {
           validUntil: new Date(discount.validUntil).toISOString().split('T')[0],
         })));
         setIsLoading(false);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
+      } catch (_error) {
         setIsLoading(false);
+        setError('Failed to fetch discounts');
       }
     }
     fetchDiscounts();

@@ -1,6 +1,12 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 
+interface OrderItemInput {
+  menuItemId: string;
+  quantity: number;
+  price: number;
+}
+
 // GET all orders
 export async function GET() {
   try {
@@ -56,7 +62,7 @@ export async function POST(request: Request) {
         deliveryCharge: data.deliveryCharge,
         finalTotal: data.finalTotal,
         items: {
-          create: data.items.map((item: any) => ({
+          create: data.items.map((item: OrderItemInput) => ({
             menuItemId: item.menuItemId,
             quantity: item.quantity,
             price: item.price,

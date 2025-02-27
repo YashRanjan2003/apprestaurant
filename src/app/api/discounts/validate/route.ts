@@ -1,7 +1,24 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { DiscountType } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { Redis } from '@upstash/redis';
+
+// Define types
+type DiscountType = 'PERCENTAGE' | 'FIXED' | 'BOGO';
+
+interface DiscountData {
+  id: string;
+  code: string;
+  type: DiscountType;
+  value: number;
+  minOrderValue: number | null;
+  maxDiscount: number | null;
+  usageLimit: number | null;
+  usageCount: number;
+  applicableCategories: string[];
+  isActive: boolean;
+  validUntil: Date;
+}
 
 // Initialize Redis client
 const redis = new Redis({
@@ -73,7 +90,7 @@ export async function POST(request: Request) {
     // Try to get discount from Redis cache
     const cachedDiscount = await redis.get(cacheKey);
     if (cachedDiscount) {
-      const discount = JSON.parse(cachedDiscount as string);
+      const discount = JSON.parse(cachedDiscount as string) as DiscountData;
       
       // Validate cached discount
       if (!discount.isActive || new Date(discount.validUntil) < new Date()) {
@@ -98,9 +115,6 @@ export async function POST(request: Request) {
       prisma.discount.findUnique({
         where: {
           code: upperCode,
-          isActive: true,
-          validFrom: { lte: new Date() },
-          validUntil: { gte: new Date() },
         },
         select: {
           id: true,
@@ -116,9 +130,9 @@ export async function POST(request: Request) {
           validUntil: true,
         },
       })
-    );
+    ) as DiscountData | null;
 
-    if (!discount) {
+    if (!discount || !discount.isActive || new Date(discount.validUntil) < new Date()) {
       return NextResponse.json(
         { error: 'Invalid or expired discount code' },
         { status: 404 }
@@ -156,7 +170,7 @@ export async function POST(request: Request) {
 
 // Optimized discount validation logic
 function validateDiscount(
-  discount: any,
+  discount: DiscountData,
   cartTotal: number,
   categories: string[]
 ) {
@@ -183,12 +197,12 @@ function validateDiscount(
   }
 
   let discountAmount = 0;
-  if (discount.type === DiscountType.PERCENTAGE) {
+  if (discount.type === 'PERCENTAGE') {
     discountAmount = (cartTotal * discount.value) / 100;
     if (discount.maxDiscount) {
       discountAmount = Math.min(discountAmount, discount.maxDiscount);
     }
-  } else if (discount.type === DiscountType.FIXED) {
+  } else if (discount.type === 'FIXED') {
     discountAmount = discount.value;
   }
 
