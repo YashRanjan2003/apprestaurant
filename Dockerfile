@@ -8,13 +8,13 @@ RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 # Copy package files and prisma schema
-COPY package.json package-lock.json* ./
+COPY package.json ./
 COPY prisma ./prisma/
 
-# First install dependencies without running scripts
-RUN npm ci --ignore-scripts
+# Install dependencies with clean slate
+RUN npm install --ignore-scripts
 
-# Then generate Prisma client
+# Generate Prisma client
 RUN npx prisma generate
 
 # Builder stage
