@@ -14,9 +14,6 @@ COPY prisma ./prisma/
 # Install dependencies with clean slate
 RUN npm install --ignore-scripts
 
-# Generate Prisma client
-RUN npx prisma generate
-
 # Builder stage
 FROM base AS builder
 RUN apk add --no-cache libc6-compat openssl
@@ -27,6 +24,12 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
 COPY . .
+
+# Create .env file for build time
+RUN echo "DATABASE_URL=\"postgresql://postgres:KqoNQXLPAPWChPWyFSNCacfKPNUvBuvO@tramway.proxy.rlwy.net:16257/railway\"" > .env
+
+# Generate Prisma Client
+RUN npx prisma generate
 
 # Build Next.js
 ENV NEXT_TELEMETRY_DISABLED 1
@@ -51,6 +54,7 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/.env ./.env
 
 # Set permissions
 RUN chown -R nextjs:nodejs .
@@ -62,8 +66,9 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-# Create startup script
+# Create startup script with environment variable
 RUN echo '#!/bin/sh\n\
+export DATABASE_URL="postgresql://postgres:KqoNQXLPAPWChPWyFSNCacfKPNUvBuvO@tramway.proxy.rlwy.net:16257/railway"\n\
 echo "Waiting for database..."\n\
 sleep 5\n\
 echo "Running database migrations..."\n\
