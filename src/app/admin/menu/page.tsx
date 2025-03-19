@@ -1,451 +1,600 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase/client';
+import { getAllMenuItems, getMenuCategories } from '@/lib/supabase/menu';
+import { formatPrice } from '@/lib/utils/helpers';
 
 interface MenuItem {
   id: string;
   name: string;
   description: string;
   price: number;
-  category: string;
-  imageUrl: string;
-  isVeg?: boolean;
-  rating?: number;
-  ratingCount?: number;
-  calories?: number;
-  protein?: number;
-  originalPrice?: number;
-  offer?: string;
-  isAvailable?: boolean;
+  original_price: number | null;
+  image_url: string;
+  is_veg: boolean;
+  category_id: string;
+  available: boolean;
+  category: {
+    name: string;
+  };
 }
 
-export default function MenuManagement() {
-  const _router = useRouter();
-  const [items, setItems] = useState<MenuItem[]>([]);
-  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
+interface Category {
+  id: string;
+  name: string;
+}
+
+export default function MenuItemsPage() {
+  const router = useRouter();
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [filteredItems, setFilteredItems] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [vegFilter, setVegFilter] = useState('all');
+  const [sortOrder, setSortOrder] = useState('name-asc');
+  const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('grid');
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
-  const [formData, setFormData] = useState<Partial<MenuItem>>({
-    name: '',
-    description: '',
-    price: 0,
-    category: '',
-    imageUrl: '',
-    isVeg: true,
-    isAvailable: true,
-  });
-
+  // Fetch menu items and categories
   useEffect(() => {
-    fetchMenuItems();
-  }, []);
-
-  const fetchMenuItems = async () => {
-    try {
-      const response = await fetch('/api/admin/menu');
-      if (!response.ok) {
-        throw new Error('Failed to fetch menu items');
-      }
-      const data = await response.json();
-      setItems(data);
-      setIsLoading(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      setIsLoading(false);
-    }
-  };
-
-  const handleEdit = (item: MenuItem) => {
-    setSelectedItem(item);
-    setFormData(item);
-    setIsEditing(true);
-    setIsAdding(false);
-  };
-
-  const handleAdd = () => {
-    setSelectedItem(null);
-    setFormData({
-      name: '',
-      description: '',
-      price: 0,
-      category: '',
-      imageUrl: '',
-      isVeg: true,
-      isAvailable: true,
-    });
-    setIsEditing(false);
-    setIsAdding(true);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    try {
-      if (isEditing && selectedItem) {
-        // Update existing item
-        const response = await fetch(`/api/admin/menu/${selectedItem.id}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(formData),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to update menu item');
-        }
-
-        const updatedItem = await response.json();
-        setItems(items.map(item => 
-          item.id === selectedItem.id ? updatedItem : item
-        ));
-      } else if (isAdding) {
-        // Generate a URL-friendly ID from the name
-        const id = formData.name?.toLowerCase().replace(/\s+/g, '-') || '';
-        
-        // Add new item
-        const response = await fetch('/api/admin/menu', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ ...formData, id }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to add menu item');
-        }
-
-        const newItem = await response.json();
-        setItems([...items, newItem]);
-      }
-
-      // Reset form
-      setIsEditing(false);
-      setIsAdding(false);
-      setSelectedItem(null);
-      setFormData({
-        name: '',
-        description: '',
-        price: 0,
-        category: '',
-        imageUrl: '',
-        isVeg: true,
-        isAvailable: true,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this item?')) {
+    async function fetchData() {
       try {
-        const response = await fetch(`/api/admin/menu/${id}`, {
-          method: 'DELETE',
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to delete menu item');
-        }
-
-        setItems(items.filter(item => item.id !== id));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
+        setIsLoading(true);
+        const [itemsData, categoriesData] = await Promise.all([
+          getAllMenuItems(),
+          getMenuCategories()
+        ]);
+        
+        setMenuItems(itemsData as MenuItem[]);
+        setCategories(categoriesData as Category[]);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching menu data:', err);
+        setError('Failed to load menu items');
+      } finally {
+        setIsLoading(false);
       }
     }
+    
+    fetchData();
+  }, []);
+  
+  // Filter and sort menu items
+  useEffect(() => {
+    let filtered = [...menuItems];
+    
+    // Apply category filter
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter(item => item.category_id === categoryFilter);
+    }
+    
+    // Apply vegetarian filter
+    if (vegFilter === 'veg') {
+      filtered = filtered.filter(item => item.is_veg);
+    } else if (vegFilter === 'non-veg') {
+      filtered = filtered.filter(item => !item.is_veg);
+    }
+    
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        item => 
+          item.name.toLowerCase().includes(query) || 
+          item.description.toLowerCase().includes(query)
+      );
+    }
+    
+    // Apply sorting
+    switch(sortOrder) {
+      case 'name-asc':
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'name-desc':
+        filtered.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case 'price-asc':
+        filtered.sort((a, b) => a.price - b.price);
+        break;
+      case 'price-desc':
+        filtered.sort((a, b) => b.price - a.price);
+        break;
+      default:
+        break;
+    }
+    
+    setFilteredItems(filtered);
+  }, [menuItems, categoryFilter, vegFilter, searchQuery, sortOrder]);
+  
+  // Handle bulk selection toggle
+  const handleSelectAll = () => {
+    if (selectedItems.length === filteredItems.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(filteredItems.map(item => item.id));
+    }
   };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-600">Error: {error}</div>
-      </div>
-    );
-  }
+  
+  // Handle item selection toggle
+  const handleSelectItem = (id: string) => {
+    if (selectedItems.includes(id)) {
+      setSelectedItems(selectedItems.filter(itemId => itemId !== id));
+    } else {
+      setSelectedItems([...selectedItems, id]);
+    }
+  };
+  
+  // Handle bulk availability toggle
+  const handleBulkAvailabilityToggle = async (makeAvailable: boolean) => {
+    if (selectedItems.length === 0) return;
+    
+    try {
+      setBulkActionLoading(true);
+      
+      const { error: updateError } = await supabase
+        .from('menu_items')
+        .update({ 
+          available: makeAvailable,
+          updated_at: new Date().toISOString()
+        })
+        .in('id', selectedItems);
+      
+      if (updateError) throw updateError;
+      
+      // Update local state
+      setMenuItems(menuItems.map(item => 
+        selectedItems.includes(item.id) 
+          ? { ...item, available: makeAvailable } 
+          : item
+      ));
+      
+      // Clear selection
+      setSelectedItems([]);
+      
+    } catch (err: any) {
+      console.error('Error updating items:', err);
+      setError('Failed to update items');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+  
+  // Handle item delete
+  const handleDeleteItem = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this menu item? This cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('menu_items')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setMenuItems(menuItems.filter(item => item.id !== id));
+      
+    } catch (err: any) {
+      console.error('Error deleting item:', err);
+      setError('Failed to delete item');
+    }
+  };
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold mb-2">Menu Management</h1>
-          <p className="text-gray-600">Add, edit, or remove menu items.</p>
+          <h1 className="text-2xl font-bold text-gray-800">Menu Items</h1>
+          <p className="text-gray-600">Manage your restaurant menu ({menuItems.length} items)</p>
         </div>
-        <button
-          onClick={handleAdd}
-          className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          Add New Item
-        </button>
+        <div className="flex gap-3">
+          <Link
+            href="/admin/menu/new"
+            className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 flex items-center"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add New Item
+          </Link>
+          <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+            <button
+              className={`px-3 py-2 ${displayMode === 'grid' ? 'bg-gray-100 text-gray-800' : 'text-gray-600'}`}
+              onClick={() => setDisplayMode('grid')}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+            </button>
+            <button
+              className={`px-3 py-2 ${displayMode === 'table' ? 'bg-gray-100 text-gray-800' : 'text-gray-600'}`}
+              onClick={() => setDisplayMode('table')}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Form for adding/editing items */}
-      {(isEditing || isAdding) && (
-        <div className="bg-white rounded-xl p-6 shadow-sm mb-8">
-          <h2 className="text-xl font-semibold mb-4">
-            {isEditing ? 'Edit Menu Item' : 'Add New Menu Item'}
-          </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Category
-                </label>
-                <input
-                  type="text"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Price (₹)
-                </label>
-                <input
-                  type="number"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
-                  required
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Original Price (₹)
-                </label>
-                <input
-                  type="number"
-                  value={formData.originalPrice || ''}
-                  onChange={(e) => setFormData({ ...formData, originalPrice: Number(e.target.value) })}
-                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Image URL
-                </label>
-                <input
-                  type="text"
-                  value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Offer
-                </label>
-                <input
-                  type="text"
-                  value={formData.offer || ''}
-                  onChange={(e) => setFormData({ ...formData, offer: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
-                  placeholder="e.g., Buy 1 Get 1 Free"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
-                  rows={3}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Calories
-                </label>
-                <input
-                  type="number"
-                  value={formData.calories || ''}
-                  onChange={(e) => setFormData({ ...formData, calories: Number(e.target.value) })}
-                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
-                  min="0"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Protein (g)
-                </label>
-                <input
-                  type="number"
-                  value={formData.protein || ''}
-                  onChange={(e) => setFormData({ ...formData, protein: Number(e.target.value) })}
-                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
-                  min="0"
-                />
-              </div>
-
-              <div className="flex items-center space-x-4">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formData.isVeg}
-                    onChange={(e) => setFormData({ ...formData, isVeg: e.target.checked })}
-                    className="rounded border-gray-300 text-black focus:ring-black"
-                  />
-                  <span className="ml-2 text-sm text-gray-700">Vegetarian</span>
-                </label>
-
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formData.isAvailable}
-                    onChange={(e) => setFormData({ ...formData, isAvailable: e.target.checked })}
-                    className="rounded border-gray-300 text-black focus:ring-black"
-                  />
-                  <span className="ml-2 text-sm text-gray-700">Available</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-4 pt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsEditing(false);
-                  setIsAdding(false);
-                  setSelectedItem(null);
-                }}
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                {isEditing ? 'Save Changes' : 'Add Item'}
-              </button>
-            </div>
-          </form>
+      {error && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6">
+          {error}
         </div>
       )}
 
-      {/* Menu Items List */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-gray-50">
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Item
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Category
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Price
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {items.map((item) => (
-              <tr key={item.id}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <Image
-                      src={item.imageUrl}
-                      alt={item.name}
-                      width={40}
-                      height={40}
-                      className="rounded-md"
-                    />
-                    <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                      <div className="text-sm text-gray-500">{item.description}</div>
-                    </div>
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {/* Search */}
+          <div className="lg:col-span-2">
+            <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
+              Search Items
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                id="search"
+                placeholder="Search by name or description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+              />
+            </div>
+          </div>
+          
+          {/* Category filter */}
+          <div>
+            <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+              Filter by Category
+            </label>
+            <select
+              id="category"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Sort order */}
+          <div>
+            <label htmlFor="sort" className="block text-sm font-medium text-gray-700 mb-1">
+              Sort By
+            </label>
+            <select
+              id="sort"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+            >
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="price-asc">Price (Low to High)</option>
+              <option value="price-desc">Price (High to Low)</option>
+            </select>
+          </div>
+        </div>
+        
+        {/* Additional filters */}
+        <div className="mt-4 flex items-center">
+          <label className="text-sm font-medium text-gray-700 mr-4">Show:</label>
+          
+          <div className="flex space-x-4">
+            <label className="inline-flex items-center">
+              <input
+                type="radio"
+                name="vegFilter"
+                value="all"
+                checked={vegFilter === 'all'}
+                onChange={() => setVegFilter('all')}
+                className="h-4 w-4 text-black focus:ring-black border-gray-300"
+              />
+              <span className="ml-2 text-sm text-gray-700">All</span>
+            </label>
+            
+            <label className="inline-flex items-center">
+              <input
+                type="radio"
+                name="vegFilter"
+                value="veg"
+                checked={vegFilter === 'veg'}
+                onChange={() => setVegFilter('veg')}
+                className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
+              />
+              <span className="ml-2 text-sm text-gray-700">Vegetarian Only</span>
+            </label>
+            
+            <label className="inline-flex items-center">
+              <input
+                type="radio"
+                name="vegFilter"
+                value="non-veg"
+                checked={vegFilter === 'non-veg'}
+                onChange={() => setVegFilter('non-veg')}
+                className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300"
+              />
+              <span className="ml-2 text-sm text-gray-700">Non-Vegetarian Only</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Bulk Actions */}
+      {selectedItems.length > 0 && (
+        <div className="bg-gray-50 p-4 rounded-lg shadow-sm mb-6 flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            <span className="font-medium">{selectedItems.length}</span> items selected
+          </div>
+          <div className="flex space-x-3">
+            <button
+              onClick={() => handleBulkAvailabilityToggle(true)}
+              disabled={bulkActionLoading}
+              className="px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50"
+            >
+              Mark Available
+            </button>
+            <button
+              onClick={() => handleBulkAvailabilityToggle(false)}
+              disabled={bulkActionLoading}
+              className="px-3 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 disabled:opacity-50"
+            >
+              Mark Unavailable
+            </button>
+            <button
+              onClick={() => setSelectedItems([])}
+              className="px-3 py-2 bg-gray-200 text-gray-800 text-sm rounded-md hover:bg-gray-300"
+            >
+              Clear Selection
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex justify-center items-center h-40">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-800"></div>
+        </div>
+      ) : filteredItems.length === 0 ? (
+        <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+          <svg
+            className="mx-auto h-12 w-12 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1}
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            />
+          </svg>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No menu items found</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            {searchQuery || categoryFilter !== 'all' ? 'Try adjusting your filters.' : 'Get started by adding a new item.'}
+          </p>
+          <div className="mt-6">
+            <Link
+              href="/admin/menu/new"
+              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-black hover:bg-gray-800"
+            >
+              <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              New Item
+            </Link>
+          </div>
+        </div>
+      ) : displayMode === 'grid' ? (
+        // Grid View
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredItems.map((item) => (
+            <div key={item.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="relative pt-[60%]">
+                <Image
+                  src={item.image_url || '/placeholder-food.jpg'}
+                  alt={item.name}
+                  fill
+                  className="object-cover"
+                />
+                {!item.available && (
+                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                    <span className="px-3 py-1 bg-red-600 text-white rounded-full text-xs font-medium">
+                      Not Available
+                    </span>
                   </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {item.category}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  ₹{item.price}
-                  {item.originalPrice && (
-                    <span className="ml-2 text-xs line-through text-gray-400">
-                      ₹{item.originalPrice}
+                )}
+                <div className="absolute top-2 left-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedItems.includes(item.id)}
+                    onChange={() => handleSelectItem(item.id)}
+                    className="h-5 w-5 text-black focus:ring-black border-gray-300 rounded"
+                  />
+                </div>
+                <div className="absolute top-2 right-2">
+                  {item.is_veg ? (
+                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                      Veg
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
+                      Non-Veg
                     </span>
                   )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      item.isAvailable
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}
-                  >
-                    {item.isAvailable ? 'Available' : 'Sold Out'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <button
-                    onClick={() => handleEdit(item)}
-                    className="text-black hover:text-gray-700 mr-4"
+                </div>
+              </div>
+              <div className="p-4">
+                <div className="flex justify-between items-start">
+                  <h3 className="font-medium text-gray-900">{item.name}</h3>
+                  <div className="text-right">
+                    <div className="font-medium text-gray-900">{formatPrice(item.price)}</div>
+                    {item.original_price && (
+                      <div className="text-sm text-gray-500 line-through">
+                        {formatPrice(item.original_price)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <p className="mt-1 text-sm text-gray-600 line-clamp-2">{item.description}</p>
+                <div className="mt-2 text-xs text-gray-500">
+                  Category: {categories.find(c => c.id === item.category_id)?.name || 'Uncategorized'}
+                </div>
+                <div className="mt-4 flex justify-between items-center pt-3 border-t border-gray-100">
+                  <Link
+                    href={`/admin/menu/${item.id}`}
+                    className="text-indigo-600 hover:text-indigo-900 text-sm"
                   >
                     Edit
-                  </button>
+                  </Link>
                   <button
-                    onClick={() => handleDelete(item.id)}
-                    className="text-red-600 hover:text-red-800"
+                    onClick={() => handleDeleteItem(item.id)}
+                    className="text-red-600 hover:text-red-900 text-sm"
                   >
                     Delete
                   </button>
-                </td>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        // Table View
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-4 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={selectedItems.length === filteredItems.length && filteredItems.length > 0}
+                    onChange={handleSelectAll}
+                    className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
+                  />
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Item
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Category
+                </th>
+                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Price
+                </th>
+                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Veg/Non-Veg
+                </th>
+                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredItems.map((item) => (
+                <tr key={item.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.includes(item.id)}
+                      onChange={() => handleSelectItem(item.id)}
+                      className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
+                    />
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="h-10 w-10 flex-shrink-0 mr-3 relative rounded overflow-hidden">
+                        <Image
+                          src={item.image_url || '/placeholder-food.jpg'}
+                          alt={item.name}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                        <div className="text-sm text-gray-500 line-clamp-1">{item.description}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">
+                      {categories.find(c => c.id === item.category_id)?.name || 'Uncategorized'}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                    <div className="text-sm font-medium text-gray-900">
+                      {formatPrice(item.price)}
+                    </div>
+                    {item.original_price && (
+                      <div className="text-xs text-gray-500 line-through">
+                        {formatPrice(item.original_price)}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-center">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      item.is_veg 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {item.is_veg ? 'Veg' : 'Non-Veg'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-center">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      item.available 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {item.available ? 'Available' : 'Unavailable'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                    <Link
+                      href={`/admin/menu/${item.id}`}
+                      className="text-indigo-600 hover:text-indigo-900 mr-4"
+                    >
+                      Edit
+                    </Link>
+                    <button
+                      onClick={() => handleDeleteItem(item.id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 } 

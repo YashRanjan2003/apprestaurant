@@ -1,226 +1,412 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-
-interface DashboardMetrics {
-  orders: {
-    total: number;
-    pending: number;
-  };
-  menuItems: {
-    total: number;
-    lowStock: number;
-  };
-  discounts: {
-    active: number;
-    endingSoon: number;
-  };
-  revenue: {
-    today: number;
-  };
-}
-
-interface RecentOrder {
-  id: string;
-  customer: {
-    name: string;
-    phone: string;
-  };
-  status: string;
-  total: number;
-  createdAt: string;
-}
-
-interface DashboardData {
-  metrics: DashboardMetrics;
-  recentOrders: RecentOrder[];
-}
+import { supabase } from '@/lib/supabase/client';
+import { formatPrice } from '@/lib/utils/helpers';
 
 export default function AdminDashboard() {
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [stats, setStats] = useState({
+    totalOrders: 0,
+    pendingOrders: 0,
+    totalMenuItems: 0,
+    totalCategories: 0,
+    revenueToday: 0,
+    revenueWeek: 0,
+    revenueMonth: 0
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [popularItems, setPopularItems] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    async function fetchDashboardData() {
       try {
-        const response = await fetch('/api/admin/dashboard');
-        if (!response.ok) {
-          throw new Error('Failed to fetch dashboard data');
+        setIsLoading(true);
+        
+        // Get counts
+        const { count: totalOrders, error: ordersError } = await supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true });
+          
+        const { count: pendingOrders, error: pendingError } = await supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .in('status', ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery']);
+          
+        const { count: totalMenuItems, error: menuError } = await supabase
+          .from('menu_items')
+          .select('*', { count: 'exact', head: true });
+          
+        const { count: totalCategories, error: categoriesError } = await supabase
+          .from('menu_categories')
+          .select('*', { count: 'exact', head: true });
+        
+        // Get revenue stats
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const weekStart = new Date();
+        weekStart.setDate(weekStart.getDate() - 7);
+        weekStart.setHours(0, 0, 0, 0);
+        
+        const monthStart = new Date();
+        monthStart.setMonth(monthStart.getMonth() - 1);
+        monthStart.setHours(0, 0, 0, 0);
+        
+        const { data: todayOrders, error: todayError } = await supabase
+          .from('orders')
+          .select('final_total')
+          .gte('created_at', today.toISOString())
+          .not('status', 'eq', 'cancelled');
+        
+        const { data: weekOrders, error: weekError } = await supabase
+          .from('orders')
+          .select('final_total')
+          .gte('created_at', weekStart.toISOString())
+          .not('status', 'eq', 'cancelled');
+        
+        const { data: monthOrders, error: monthError } = await supabase
+          .from('orders')
+          .select('final_total')
+          .gte('created_at', monthStart.toISOString())
+          .not('status', 'eq', 'cancelled');
+        
+        // Get recent orders
+        const { data: recent, error: recentError } = await supabase
+          .from('orders')
+          .select(`
+            id, 
+            created_at, 
+            otp, 
+            final_total, 
+            status, 
+            order_type
+          `)
+          .order('created_at', { ascending: false })
+          .limit(5);
+          
+        // Get popular items (mock data for now)
+        setPopularItems([
+          { id: 1, name: 'Butter Chicken', orders: 42, revenue: 8400 },
+          { id: 2, name: 'Paneer Tikka', orders: 38, revenue: 6840 },
+          { id: 3, name: 'Veg Biryani', orders: 35, revenue: 5250 },
+          { id: 4, name: 'Chicken Biryani', orders: 30, revenue: 4800 },
+          { id: 5, name: 'Masala Dosa', orders: 25, revenue: 3000 },
+        ]);
+        
+        // Check for errors
+        if (ordersError || pendingError || menuError || categoriesError || 
+            todayError || weekError || monthError || recentError) {
+          throw new Error('Error fetching dashboard data');
         }
-        const dashboardData = await response.json();
-        setData(dashboardData);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
+        
+        // Calculate revenue
+        const revenueToday = todayOrders?.reduce((sum, order) => sum + order.final_total, 0) || 0;
+        const revenueWeek = weekOrders?.reduce((sum, order) => sum + order.final_total, 0) || 0;
+        const revenueMonth = monthOrders?.reduce((sum, order) => sum + order.final_total, 0) || 0;
+        
+        setStats({
+          totalOrders: totalOrders || 0,
+          pendingOrders: pendingOrders || 0,
+          totalMenuItems: totalMenuItems || 0,
+          totalCategories: totalCategories || 0,
+          revenueToday,
+          revenueWeek,
+          revenueMonth
+        });
+        
+        setRecentOrders(recent || []);
+        
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching dashboard data:', err);
+        setError('Failed to load dashboard data');
       } finally {
         setIsLoading(false);
       }
-    };
-
+    }
+    
     fetchDashboardData();
   }, []);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-600">Error: {error}</div>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return null;
-  }
-
-  const dashboardCards = [
-    {
-      title: 'Total Orders',
-      value: data.metrics.orders.total,
-      description: `${data.metrics.orders.pending} pending orders`,
-      link: '/admin/orders',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        </svg>
-      ),
-    },
-    {
-      title: 'Menu Items',
-      value: data.metrics.menuItems.total,
-      description: `${data.metrics.menuItems.lowStock} items low in stock`,
-      link: '/admin/menu',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-        </svg>
-      ),
-    },
-    {
-      title: 'Active Discounts',
-      value: data.metrics.discounts.active,
-      description: `${data.metrics.discounts.endingSoon} ending soon`,
-      link: '/admin/discounts',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-    },
-    {
-      title: 'Revenue Today',
-      value: `₹${data.metrics.revenue.today.toFixed(2)}`,
-      description: 'From completed orders',
-      link: '/admin/analytics',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-      ),
-    },
-  ];
-
+  
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-2">Dashboard</h1>
-        <p className="text-gray-600">Welcome to your restaurant admin panel.</p>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
+        <p className="text-gray-600">Overview of your restaurant business</p>
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {dashboardCards.map((card) => (
-          <Link
-            key={card.title}
-            href={card.link}
-            className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-2 bg-black/5 rounded-lg">
-                {card.icon}
+      
+      {error && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6">
+          {error}
+        </div>
+      )}
+      
+      {isLoading ? (
+        <div className="flex justify-center items-center h-40">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-800"></div>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Total Orders */}
+            <div className="bg-white p-6 rounded-lg shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-medium text-gray-500">Total Orders</h2>
+                <span className="p-2 bg-blue-50 rounded-full">
+                  <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </span>
               </div>
-              <span className="text-2xl font-bold">{card.value}</span>
+              <p className="mt-2 text-3xl font-semibold text-gray-800">{stats.totalOrders}</p>
+              <Link href="/admin/orders" className="mt-2 inline-block text-sm text-blue-600 hover:text-blue-800">
+                View all orders →
+              </Link>
             </div>
-            <h3 className="font-semibold mb-1">{card.title}</h3>
-            <p className="text-sm text-gray-600">{card.description}</p>
-          </Link>
-        ))}
-      </div>
-
-      {/* Recent Orders */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Recent Orders</h2>
-          <Link
-            href="/admin/orders"
-            className="text-sm text-gray-600 hover:text-black"
-          >
-            View all
-          </Link>
+            
+            {/* Pending Orders */}
+            <div className="bg-white p-6 rounded-lg shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-medium text-gray-500">Active Orders</h2>
+                <span className="p-2 bg-yellow-50 rounded-full">
+                  <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </span>
+              </div>
+              <p className="mt-2 text-3xl font-semibold text-gray-800">{stats.pendingOrders}</p>
+              <Link href="/admin/orders" className="mt-2 inline-block text-sm text-blue-600 hover:text-blue-800">
+                Manage orders →
+              </Link>
+            </div>
+            
+            {/* Menu Items */}
+            <div className="bg-white p-6 rounded-lg shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-medium text-gray-500">Menu Items</h2>
+                <span className="p-2 bg-green-50 rounded-full">
+                  <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </span>
+              </div>
+              <p className="mt-2 text-3xl font-semibold text-gray-800">{stats.totalMenuItems}</p>
+              <Link href="/admin/menu" className="mt-2 inline-block text-sm text-blue-600 hover:text-blue-800">
+                Manage menu →
+              </Link>
+            </div>
+            
+            {/* Categories */}
+            <div className="bg-white p-6 rounded-lg shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-medium text-gray-500">Categories</h2>
+                <span className="p-2 bg-purple-50 rounded-full">
+                  <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                </span>
+              </div>
+              <p className="mt-2 text-3xl font-semibold text-gray-800">{stats.totalCategories}</p>
+              <Link href="/admin/categories" className="mt-2 inline-block text-sm text-blue-600 hover:text-blue-800">
+                Manage categories →
+              </Link>
+            </div>
+          </div>
+          
+          {/* Main Dashboard Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Revenue Overview */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                <div className="p-4 border-b">
+                  <h2 className="text-lg font-semibold text-gray-800">Revenue Overview</h2>
+                </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-500">Today</h3>
+                      <p className="mt-2 text-2xl font-semibold text-gray-800">{formatPrice(stats.revenueToday)}</p>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-500">Last 7 Days</h3>
+                      <p className="mt-2 text-2xl font-semibold text-gray-800">{formatPrice(stats.revenueWeek)}</p>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-500">Last 30 Days</h3>
+                      <p className="mt-2 text-2xl font-semibold text-gray-800">{formatPrice(stats.revenueMonth)}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Revenue chart would go here in a real app */}
+                  <div className="mt-6 h-64 bg-gray-50 rounded-lg flex items-center justify-center">
+                    <p className="text-gray-500">Revenue Chart (placeholder)</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Store Information */}
+            <div className="bg-white p-6 rounded-lg shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Store Information</h2>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Restaurant Name</h3>
+                  <p className="mt-1 text-gray-800">Delicious Food Restaurant</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Business Hours</h3>
+                  <p className="mt-1 text-gray-800">Monday - Sunday: 10:00 AM - 10:00 PM</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Contact Info</h3>
+                  <p className="mt-1 text-gray-800">phone: +91 1234567890</p>
+                  <p className="text-gray-800">email: contact@deliciousfood.com</p>
+                </div>
+                <Link href="/admin/settings" className="inline-block text-sm text-blue-600 hover:text-blue-800">
+                  Edit store information →
+                </Link>
+              </div>
+            </div>
+          </div>
+          
+          {/* Recent Orders & Popular Items */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Recent Orders */}
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="p-4 border-b flex justify-between items-center">
+                <h2 className="text-lg font-semibold text-gray-800">Recent Orders</h2>
+                <Link href="/admin/orders" className="text-sm text-blue-600 hover:text-blue-800">
+                  View all
+                </Link>
+              </div>
+              <div className="divide-y">
+                {recentOrders.length === 0 ? (
+                  <div className="p-6 text-center text-gray-500">
+                    No recent orders found
+                  </div>
+                ) : (
+                  recentOrders.map((order) => (
+                    <div key={order.id} className="p-4 hover:bg-gray-50">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Order #{order.otp}</span>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                              order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {order.status.charAt(0).toUpperCase() + order.status.slice(1).replace('_', ' ')}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(order.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-medium">{formatPrice(order.final_total)}</span>
+                          <p className="text-xs text-gray-500 mt-1">{order.order_type}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
+            {/* Popular Items */}
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="p-4 border-b">
+                <h2 className="text-lg font-semibold text-gray-800">Popular Items</h2>
+              </div>
+              <div className="p-4">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Orders</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {popularItems.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <span className="font-medium text-gray-900">{item.name}</span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right">
+                          <span className="text-gray-900">{item.orders}</span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right">
+                          <span className="text-gray-900">{formatPrice(item.revenue)}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          
+          {/* Quick Actions */}
+          <div className="bg-white p-6 rounded-lg shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Link 
+                href="/admin/menu/new" 
+                className="flex items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <span className="p-2 mr-3 bg-green-100 rounded-full">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                </span>
+                <span className="text-gray-700">Add New Menu Item</span>
+              </Link>
+              
+              <Link 
+                href="/admin/orders" 
+                className="flex items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <span className="p-2 mr-3 bg-blue-100 rounded-full">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </span>
+                <span className="text-gray-700">Manage Orders</span>
+              </Link>
+              
+              <Link 
+                href="/admin/categories" 
+                className="flex items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <span className="p-2 mr-3 bg-purple-100 rounded-full">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                </span>
+                <span className="text-gray-700">Manage Categories</span>
+              </Link>
+              
+              <Link 
+                href="/admin/users" 
+                className="flex items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <span className="p-2 mr-3 bg-indigo-100 rounded-full">
+                  <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                </span>
+                <span className="text-gray-700">Manage Users</span>
+              </Link>
+            </div>
+          </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Order ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Customer
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Time
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {data.recentOrders.map((order) => (
-                <tr key={order.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {order.id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    <div>{order.customer.name}</div>
-                    <div className="text-xs text-gray-500">{order.customer.phone}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        order.status === 'DELIVERED'
-                          ? 'bg-green-100 text-green-800'
-                          : order.status === 'PENDING'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-blue-100 text-blue-800'
-                      }`}
-                    >
-                      {order.status.replace(/_/g, ' ')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    ₹{order.total.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {new Date(order.createdAt).toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
     </div>
   );
 } 

@@ -1,4 +1,4 @@
-// File: C:\Users\yashr\OneDrive\Desktop\randomnaam\restaurant-platform\src\app\checkout\confirmation\page.tsx
+// File: C:\Users\yashr\OneDrive\Desktop\randomnaam\restaurantplatformtry\src\app\checkout\confirmation\page.tsx
 import * as entry from '../../../../../src/app/checkout/confirmation/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

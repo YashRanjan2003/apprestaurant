@@ -1,59 +1,112 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase/client';
+import { User } from '@supabase/supabase-js';
 
-interface User {
+interface AuthUser {
   id: string;
-  username: string;
+  name: string;
   phone: string;
   email?: string;
-  role: 'user' | 'admin';
 }
 
 interface AuthContextType {
-  user: User | null;
-  login: (credentials: { username: string; password: string }) => Promise<void>;
-  signup: (userData: { username: string; password: string; phone: string; email?: string }) => Promise<void>;
-  logout: () => void;
+  user: AuthUser | null;
+  supabaseUser: User | null;
+  login: (credentials: { phone: string; }) => Promise<void>;
+  signup: (userData: { name: string; phone: string; email?: string }) => Promise<void>;
+  logout: () => Promise<void>;
   isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for saved user data on mount
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (error) {
-        console.error('Failed to parse user data:', error);
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setIsLoading(true);
+        if (session?.user) {
+          setSupabaseUser(session.user);
+          
+          // Fetch the user profile from our database
+          const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (data && !error) {
+            const authUser: AuthUser = {
+              id: data.id,
+              name: data.name,
+              phone: data.phone,
+              email: data.email || undefined,
+            };
+            setUser(authUser);
+          } else {
+            // New user, just signed up with auth but no profile yet
+            console.log('User authenticated but no profile found');
+            setUser(null);
+          }
+        } else {
+          setSupabaseUser(null);
+          setUser(null);
+        }
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    );
+
+    // Initial check for user
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setSupabaseUser(session.user);
+        
+        // Fetch user profile
+        supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data, error }) => {
+            if (data && !error) {
+              const authUser: AuthUser = {
+                id: data.id,
+                name: data.name,
+                phone: data.phone,
+                email: data.email || undefined,
+              };
+              setUser(authUser);
+            }
+            setIsLoading(false);
+          });
+      } else {
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const login = async (credentials: { username: string; password: string }) => {
+  const login = async (credentials: { phone: string }) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Phone auth with Supabase
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: credentials.phone,
+      });
       
-      // In a real app, you would validate credentials with your backend
-      // For demo, set admin role if username includes 'admin'
-      const mockUser: User = {
-        id: '1',
-        username: credentials.username,
-        phone: '1234567890',
-        role: credentials.username.toLowerCase().includes('admin') ? 'admin' : 'user',
-      };
+      if (error) throw error;
       
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      // The user will be set by the auth state listener
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
@@ -62,23 +115,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signup = async (userData: { username: string; password: string; phone: string; email?: string }) => {
+  const signup = async (userData: { name: string; phone: string; email?: string }) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // In a real app, you would create the user in your backend
-      const mockUser: User = {
-        id: '1',
-        username: userData.username,
+      // Sign up with phone auth
+      const { data, error: authError } = await supabase.auth.signInWithOtp({
         phone: userData.phone,
-        email: userData.email,
-        role: 'user', // New users are always regular users
-      };
+      });
       
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      if (authError) throw authError;
+
+      // After successful verification and sign-in, supabase.auth.onAuthStateChange will fire
+      // At that point we'll detect a new user without a profile
+      // For now, we need to wait for the verification process to complete
+      
+      // Note: We can't create a user record here because we don't have the user ID yet
+      // The user record will be created after the OTP verification is completed
+
+      return;
     } catch (error) {
       console.error('Signup failed:', error);
       throw error;
@@ -87,15 +141,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      await supabase.auth.signOut();
+      // The user state will be updated by the auth state listener
+    } catch (error) {
+      console.error('Logout failed:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        supabaseUser,
         login,
         signup,
         logout,

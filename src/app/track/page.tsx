@@ -1,64 +1,138 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { supabase } from '@/lib/supabase/client';
+import { useSearchParams } from 'next/navigation';
+
+interface OrderItem {
+  id: string;
+  order_id: string;
+  menu_item_id: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
 
 interface OrderDetails {
-  items: Array<{
-    id: string;
-    name: string;
-    quantity: number;
-    price: number;
-  }>;
+  id: string;
+  items: OrderItem[];
   itemTotal: number;
   gst: number;
   platformFee: number;
   deliveryCharge: number;
   finalTotal: number;
-  orderType: 'pickup' | 'delivery';
-  deliveryAddress: string | null;
+  orderType: 'pickup';
+  deliveryAddress: null;
   scheduledTime: string;
   paymentMethod: 'card' | 'cash';
   otp: string;
   status: string;
   createdAt: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string | null;
 }
 
-export default function TrackOrderPage() {
+// Create a client component that uses search params
+function TrackOrderContent() {
   const [otp, setOtp] = useState('');
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Auto-fetch order if OTP is provided in URL
+  useEffect(() => {
+    const otpFromUrl = searchParams.get('otp');
+    if (otpFromUrl && otpFromUrl.length === 6) {
+      setOtp(otpFromUrl);
+      fetchOrderByOtp(otpFromUrl)
+        .then(orderDetails => {
+          setOrder(orderDetails);
+        })
+        .catch(err => {
+          console.error('Failed to fetch order:', err);
+          setError('Order not found. Please check your code and try again.');
+        });
+    }
+  }, [searchParams]);
+
+  const fetchOrderByOtp = async (otp: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items(*)
+        `)
+        .eq('otp', otp)
+        .single();
+
+      if (error) throw error;
+      if (!data) throw new Error('Order not found');
+      
+      // Format the data to match our expected format
+      const orderDetails: OrderDetails = {
+        id: data.id,
+        items: data.order_items,
+        itemTotal: data.item_total,
+        gst: data.gst,
+        platformFee: data.platform_fee,
+        deliveryCharge: data.delivery_charge,
+        finalTotal: data.final_total,
+        orderType: data.order_type,
+        deliveryAddress: data.delivery_address,
+        scheduledTime: data.scheduled_time,
+        paymentMethod: data.payment_method,
+        otp: data.otp,
+        status: data.status,
+        createdAt: data.created_at,
+        customer_name: data.customer_name,
+        customer_phone: data.customer_phone,
+        customer_email: data.customer_email
+      };
+      
+      return orderDetails;
+    } catch (error) {
+      console.error('Error fetching order:', error);
+      throw error;
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
-    // Simulate API call delay
-    setTimeout(() => {
-      try {
-        const savedOrder = localStorage.getItem('lastOrder');
-        if (!savedOrder) {
-          setOrder(null);
-          return;
-        }
+    try {
+      const orderDetails = await fetchOrderByOtp(otp);
+      setOrder(orderDetails);
+    } catch (err: any) {
+      console.error('Failed to fetch order:', err);
+      setError('Order not found. Please check your code and try again.');
+      setOrder(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-        const orderDetails = JSON.parse(savedOrder);
-        if (orderDetails.otp !== otp) {
-          setOrder(null);
-          return;
-        }
-
-        setOrder(orderDetails);
-      } catch {
-        setOrder(null);
-      } finally {
-        setIsLoading(false);
-      }
-    }, 1000);
+  // Get the status text and color
+  const getStatusDetails = (status: string) => {
+    const statusMap: Record<string, { text: string, color: string }> = {
+      'pending': { text: 'Pending', color: 'bg-yellow-100 text-yellow-700' },
+      'confirmed': { text: 'Confirmed', color: 'bg-blue-100 text-blue-700' },
+      'preparing': { text: 'Preparing', color: 'bg-orange-100 text-orange-700' },
+      'ready': { text: 'Ready for Pickup', color: 'bg-green-100 text-green-700' },
+      'delivered': { text: 'Completed', color: 'bg-green-100 text-green-700' },
+      'cancelled': { text: 'Cancelled', color: 'bg-red-100 text-red-700' },
+    };
+    
+    return statusMap[status] || { text: status, color: 'bg-gray-100 text-gray-700' };
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="max-w-md mx-auto min-h-screen bg-white shadow-sm">
       <header className="bg-white shadow-sm">
         <div className="max-w-md mx-auto px-4 py-4 flex items-center">
           <Link href="/" className="text-gray-800">
@@ -90,6 +164,9 @@ export default function TrackOrderPage() {
                   required
                   pattern="[0-9]{6}"
                 />
+                {error && (
+                  <p className="mt-2 text-red-600 text-sm">{error}</p>
+                )}
                 <button
                   type="submit"
                   disabled={isLoading || otp.length !== 6}
@@ -105,25 +182,27 @@ export default function TrackOrderPage() {
               <div className="bg-white rounded-lg p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-semibold">Order Status</h2>
-                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
-                    {order.status}
+                  <span className={`px-3 py-1 ${getStatusDetails(order.status).color} rounded-full text-sm`}>
+                    {getStatusDetails(order.status).text}
                   </span>
                 </div>
                 <div className="text-sm space-y-2">
                   <p>
                     <span className="text-gray-600">Order Type:</span>{' '}
-                    {order.orderType === 'delivery' ? 'Delivery' : 'Pickup'}
+                    Pickup
+                  </p>
+                  <p>
+                    <span className="text-gray-600">Customer:</span>{' '}
+                    {order.customer_name}
+                  </p>
+                  <p>
+                    <span className="text-gray-600">Phone:</span>{' '}
+                    {order.customer_phone}
                   </p>
                   <p>
                     <span className="text-gray-600">Time:</span>{' '}
-                    {order.scheduledTime}
+                    {new Date(order.scheduledTime).toLocaleString()}
                   </p>
-                  {order.deliveryAddress && (
-                    <p>
-                      <span className="text-gray-600">Delivery Address:</span>{' '}
-                      {order.deliveryAddress}
-                    </p>
-                  )}
                   <p>
                     <span className="text-gray-600">Payment Method:</span>{' '}
                     {order.paymentMethod === 'card' ? 'Card' : 'Cash'}
@@ -156,14 +235,6 @@ export default function TrackOrderPage() {
                       <span className="text-gray-600">Platform Fee</span>
                       <span>₹{order.platformFee.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Delivery Charge</span>
-                      {order.itemTotal >= 500 ? (
-                        <span className="text-green-600">Free</span>
-                      ) : (
-                        <span>₹{order.deliveryCharge.toFixed(2)}</span>
-                      )}
-                    </div>
                     <div className="flex justify-between font-semibold pt-2 border-t mt-2">
                       <span>Total</span>
                       <span>₹{order.finalTotal.toFixed(2)}</span>
@@ -192,6 +263,7 @@ export default function TrackOrderPage() {
                 onClick={() => {
                   setOrder(null);
                   setOtp('');
+                  setError(null);
                 }}
                 className="w-full py-3 border-2 border-black rounded-full font-semibold hover:bg-gray-50 transition-colors"
               >
@@ -202,5 +274,23 @@ export default function TrackOrderPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+// Loading fallback
+function TrackOrderLoading() {
+  return (
+    <div className="max-w-md mx-auto min-h-screen bg-white shadow-sm flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-800"></div>
+    </div>
+  );
+}
+
+// Main component with Suspense boundary
+export default function TrackOrderPage() {
+  return (
+    <Suspense fallback={<TrackOrderLoading />}>
+      <TrackOrderContent />
+    </Suspense>
   );
 } 

@@ -3,562 +3,483 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useCart } from '@/lib/context/CartContext';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { getAllMenuItems } from '@/lib/supabase/menu';
 
 interface MenuItem {
   id: string;
   name: string;
   description: string;
   price: number;
-  category: string;
-  imageUrl: string;
-  isVeg?: boolean;
-  rating?: number;
-  ratingCount?: number;
-  calories?: number;
-  protein?: number;
-  originalPrice?: number;
-  offer?: string;
+  category_id: string;
+  image_url: string;
+  is_veg: boolean;
+  rating: number | null;
+  rating_count: number | null;
+  calories: number | null;
+  protein: number | null;
+  original_price: number | null;
+  offer: string | null;
+  menu_categories: {
+    name: string;
+  };
 }
 
-// Menu items with actual images
-const menuItems: MenuItem[] = [
-  // South Indian Specialties
-  {
-    id: '1',
-    name: 'Masala Dosa',
-    description: 'Crispy rice and lentil crepe filled with spiced potato, served with sambar and chutneys. Made with high-quality ingredients and traditional spices.',
-    price: 149,
-    originalPrice: 179,
-    category: 'South Indian Specialties',
-    imageUrl: '/assets/images/menu/masala-dosa.jpg',
-    isVeg: true,
-    rating: 4.4,
-    ratingCount: 351,
-    calories: 245,
-    protein: 8,
-    offer: 'Buy 1 Get 1 Free'
-  },
-  {
-    id: '2',
-    name: 'Medu Vada',
-    description: 'Crispy lentil doughnuts seasoned with spices, curry leaves, and black pepper. A protein-rich South Indian delicacy.',
-    price: 99,
-    originalPrice: 129,
-    category: 'South Indian Specialties',
-    imageUrl: '/assets/images/menu/medu-vada.jpg',
-    isVeg: true,
-    rating: 4.3,
-    ratingCount: 289,
-    calories: 185,
-    protein: 12
-  },
-  {
-    id: '3',
-    name: 'Fried Idli',
-    description: 'Pan-fried rice cakes tossed with spices and curry leaves, served with chutney. A healthy twist on the classic idli.',
-    price: 129,
-    category: 'South Indian Specialties',
-    imageUrl: '/assets/images/menu/fried-idli.jpg',
-    isVeg: true,
-    rating: 4.5,
-    ratingCount: 156,
-    calories: 165,
-    protein: 6
-  },
-  // Gujarati Specialties
-  {
-    id: '4',
-    name: 'Dhokla',
-    description: 'Soft and spongy steamed snack made from fermented rice and chickpea batter, tempered with mustard seeds and curry leaves. High in protein, low in calories.',
-    price: 89,
-    originalPrice: 119,
-    category: 'Gujarati Specialties',
-    imageUrl: '/assets/images/menu/dhokla.jpg',
-    isVeg: true,
-    rating: 4.6,
-    ratingCount: 423,
-    calories: 120,
-    protein: 10,
-    offer: '25% OFF'
-  },
-  // Mumbai Street Food
-  {
-    id: '5',
-    name: 'Pav Bhaji',
-    description: 'Spiced mashed vegetables served with buttered pav bread, onions, and lemon. A Mumbai street food classic made healthy.',
-    price: 159,
-    category: 'Mumbai Street Food',
-    imageUrl: '/assets/images/menu/pav bhaji.jpg',
-    isVeg: true,
-    rating: 4.7,
-    ratingCount: 512,
-    calories: 325,
-    protein: 9
-  },
-  // Indo-Chinese
-  {
-    id: '6',
-    name: 'Schezwan Noodles',
-    description: 'Spicy stir-fried noodles with vegetables in a flavorful Schezwan sauce. Made with whole wheat noodles for added nutrition.',
-    price: 179,
-    originalPrice: 199,
-    category: 'Indo-Chinese',
-    imageUrl: '/assets/images/menu/noodles.jpg',
-    isVeg: true,
-    rating: 4.2,
-    ratingCount: 345,
-    calories: 385,
-    protein: 14
-  }
-];
-
 export default function MenuPage() {
-  const { items, addItem, updateQuantity, calculateTotals, itemCount } = useCart();
-  const [showCategories, setShowCategories] = useState(false);
-  const [pureVegOnly, setPureVegOnly] = useState(false);
+  const { addItem, itemCount, updateQuantity, items: cartItems } = useCart();
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedDish, setSelectedDish] = useState<MenuItem | null>(null);
-  const [isClosing, setIsClosing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isVegOnly, setIsVegOnly] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
+  // Create refs for category sections
+  const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Get just the itemTotal
-  const { itemTotal } = calculateTotals();
-
-  const getItemQuantity = (itemId: string) => {
-    const cartItem = items.find(item => item.id === itemId);
-    return cartItem?.quantity || 0;
-  };
-
-  // Filter items based on pure veg selection and search query
-  const filteredItems = menuItems
-    .filter(item => !pureVegOnly || item.isVeg)
-    .filter(item => 
-      searchQuery === '' || 
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-  // Group items by category
-  const categories = Array.from(new Set(filteredItems.map(item => item.category)));
-
-  const scrollToCategory = (category: string) => {
-    const element = document.getElementById(category);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
+  // Fetch menu items from Supabase
+  useEffect(() => {
+    async function fetchMenuItems() {
+      try {
+        setIsLoading(true);
+        const data = await getAllMenuItems();
+        setMenuItems(data as MenuItem[]);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching menu items:', err);
+        setError('Failed to load menu items. Please try again later.');
+      } finally {
+        setIsLoading(false);
+      }
     }
-    setSelectedCategory(category);
-    setShowCategories(false);
+
+    fetchMenuItems();
+  }, []);
+
+  // Initialize quantities from cart
+  useEffect(() => {
+    const newQuantities: Record<string, number> = {};
+    cartItems.forEach(item => {
+      newQuantities[item.id] = item.quantity;
+    });
+    setQuantities(newQuantities);
+  }, [cartItems]);
+
+  // Get unique categories from the menu items
+  const categories = Array.from(new Set(menuItems.map(item => item.menu_categories.name)));
+
+  // Filter menu items based on selected category, veg filter, and search term
+  const filteredItems = menuItems.filter(item => {
+    const matchesCategory = selectedCategory ? item.menu_categories.name === selectedCategory : true;
+    const matchesVegFilter = isVegOnly ? item.is_veg : true;
+    const matchesSearch = searchTerm 
+      ? item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.description.toLowerCase().includes(searchTerm.toLowerCase())
+      : true;
+    
+    return matchesCategory && matchesVegFilter && matchesSearch;
+  });
+
+  // Group items by category for display
+  const itemsByCategory: Record<string, MenuItem[]> = {};
+  
+  if (selectedCategory) {
+    itemsByCategory[selectedCategory] = filteredItems;
+  } else {
+    filteredItems.forEach(item => {
+      const category = item.menu_categories.name;
+      if (!itemsByCategory[category]) {
+        itemsByCategory[category] = [];
+      }
+      itemsByCategory[category].push(item);
+    });
+  }
+
+  const handleAddToCart = (item: MenuItem) => {
+    addItem({
+      id: item.id,
+      name: item.name,
+      price: item.price
+    });
+    
+    // Update quantities
+    setQuantities(prev => ({
+      ...prev,
+      [item.id]: (prev[item.id] || 0) + 1
+    }));
   };
 
-  const handleCategoryClick = (category: string) => {
-    setIsClosing(true);
-    setTimeout(() => {
-      scrollToCategory(category);
-      setIsClosing(false);
-    }, 200);
+  const handleQuantityChange = (itemId: string, newQuantity: number) => {
+    if (newQuantity < 0) return;
+    
+    updateQuantity(itemId, newQuantity);
+    setQuantities(prev => ({
+      ...prev,
+      [itemId]: newQuantity
+    }));
   };
 
-  const handleDishClick = (dish: MenuItem) => {
-    setSelectedDish(dish);
+  const calculateCartTotal = () => {
+    return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
   };
 
-  const handleCloseQuickLook = () => {
-    setIsClosing(true);
-    setTimeout(() => {
-      setSelectedDish(null);
-      setIsClosing(false);
-    }, 300);
+  // Function to scroll to a category section
+  const scrollToCategory = (category: string) => {
+    if (categoryRefs.current[category]) {
+      categoryRefs.current[category]?.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start'
+      });
+      // Close the menu after selection
+      setIsMenuOpen(false);
+    }
   };
 
   return (
-    <div className="min-h-screen pb-32">
+    <div className="max-w-md mx-auto min-h-screen bg-white">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 bg-white z-10 shadow-sm">
-        <div className="max-w-md mx-auto px-4 py-4 flex justify-between items-center">
+      <header className="bg-white shadow-sm sticky top-0 z-10">
+        <div className="px-4 py-4 flex items-center justify-between">
           <Link href="/" className="text-gray-800">
-            <span className="sr-only">Back</span>
+            <span className="sr-only">Back to Home</span>
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <h1 className="text-xl font-semibold">Menu</h1>
-          <div className="w-6" />
+          <h1 className="text-xl font-bold">Menu</h1>
+          <div className="w-6"></div> {/* Spacer for centering */}
         </div>
-      </header>
 
-      {/* Menu Content */}
-      <main className="pt-16 px-4">
-        {/* Search Bar */}
-        <div className="mb-4">
-          <div className="relative">
+        {/* Search and Filters */}
+        <div className="px-4 py-2 border-b border-gray-100">
+          <div className="relative mb-3">
             <input
               type="text"
               placeholder="Search dishes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 pl-10 pr-4 rounded-lg border border-gray-200 focus:ring-2 focus:ring-black focus:border-black transition-colors"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full py-2 pl-10 pr-3 border border-gray-200 rounded-full text-sm bg-gray-50"
             />
-            <svg
-              className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
+          
+          <div className="flex flex-col space-y-3">
+            <div className="inline-flex items-center w-auto bg-gray-50 px-4 py-2 rounded-full cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isVegOnly}
+                onChange={() => setIsVegOnly(!isVegOnly)}
+                className="sr-only"
+                id="veg-toggle"
               />
-            </svg>
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              <label 
+                htmlFor="veg-toggle"
+                className="flex items-center cursor-pointer"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <div className={`w-5 h-5 border rounded-full mr-2 flex items-center justify-center ${isVegOnly ? 'border-gray-400' : 'border-gray-300'}`}>
+                  <div className={`w-3 h-3 rounded-full ${isVegOnly ? 'bg-gray-400' : 'bg-transparent'}`}></div>
+                </div>
+                <span className="text-sm text-gray-700">Pure Veg Only</span>
+              </label>
+            </div>
+
+            {/* Categories */}
+            <div className="flex overflow-x-auto py-1 scrollbar-hide">
+              <button
+                className={`px-3 py-1 text-sm whitespace-nowrap mr-2 rounded-full ${
+                  selectedCategory === null ? 'bg-black text-white' : 'bg-gray-100 text-gray-800'
+                }`}
+                onClick={() => setSelectedCategory(null)}
+              >
+                All
               </button>
-            )}
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  className={`px-3 py-1 text-sm whitespace-nowrap mr-2 rounded-full ${
+                    selectedCategory === category ? 'bg-black text-white' : 'bg-gray-100 text-gray-800'
+                  }`}
+                  onClick={() => setSelectedCategory(category)}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+      </header>
 
-        {/* Pure Veg Toggle */}
-        <div className="mb-6 flex justify-start">
-          <button
-            onClick={() => setPureVegOnly(!pureVegOnly)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm border transition-all duration-200 ${
-              pureVegOnly 
-                ? 'border-green-600 text-green-600 bg-green-50 shadow-sm'
-                : 'border-gray-300 text-gray-600 hover:border-gray-400'
-            }`}
+      <main className="pb-24">
+        {/* Loading state */}
+        {isLoading && (
+          <div className="flex justify-center items-center h-40">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          </div>
+        )}
+        
+        {/* Error state */}
+        {error && (
+          <div className="bg-red-50 text-red-600 p-4 m-4 rounded-md">
+            {error}
+          </div>
+        )}
+        
+        {/* No results */}
+        {!isLoading && filteredItems.length === 0 && (
+          <div className="text-center py-12">
+            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h7" />
+            </svg>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No items found</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Try adjusting your search or filter to find what you're looking for.
+            </p>
+            <div className="mt-6">
+              <button
+                type="button"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-black hover:bg-gray-800"
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedCategory(null);
+                  setIsVegOnly(false);
+                }}
+              >
+                Reset filters
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Menu Items */}
+        {Object.entries(itemsByCategory).map(([category, items]) => (
+          <div 
+            key={category} 
+            className="mt-4"
+            ref={el => { categoryRefs.current[category] = el; }}
           >
-            <span className={`w-2 h-2 rounded-full transition-colors duration-200 ${pureVegOnly ? 'bg-green-600' : 'bg-gray-400'}`} />
-            Pure Veg Only
-          </button>
-        </div>
-
-        {categories.map(category => (
-          <div key={category} id={category} className="mb-8">
-            <h2 className="text-xl font-bold mb-4">{category}</h2>
-            <div className="grid gap-4">
-              {filteredItems
-                .filter(item => item.category === category)
-                .map((item) => (
-                  <div key={item.id} className="bg-white rounded-lg shadow-sm p-4 flex gap-4">
-                    <div 
-                      className="w-24 h-24 relative rounded-lg flex-shrink-0 overflow-hidden cursor-pointer"
-                      onClick={() => handleDishClick(item)}
-                    >
+            <h2 className="text-2xl font-bold px-4 mb-3">{category}</h2>
+            <div className="divide-y divide-gray-100">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="px-4 py-4"
+                  onClick={() => {
+                    setSelectedItem(item);
+                    setIsModalOpen(true);
+                  }}
+                >
+                  <div className="flex">
+                    <div className="w-24 h-24 relative rounded-md overflow-hidden mr-3 flex-shrink-0">
                       <Image
-                        src={item.imageUrl}
+                        src={item.image_url || '/placeholder-food.jpg'}
                         alt={item.name}
                         fill
+                        sizes="96px"
                         className="object-cover"
-                        sizes="(max-width: 96px) 96px, 96px"
                       />
-                      {item.isVeg && (
-                        <div className="absolute top-1 left-1 w-4 h-4 bg-white rounded-sm flex items-center justify-center">
-                          <div className="w-3 h-3 border border-green-600 rounded-sm flex items-center justify-center">
-                            <div className="w-2 h-2 rounded-full bg-green-600" />
+                      {item.is_veg && (
+                        <div className="absolute top-1 left-1 bg-white p-0.5 rounded-sm">
+                          <div className="w-4 h-4 border border-green-600 flex items-center justify-center">
+                            <div className="w-2 h-2 bg-green-600 rounded-full"></div>
                           </div>
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div 
-                        className="cursor-pointer"
-                        onClick={() => handleDishClick(item)}
-                      >
-                        <h3 className="font-semibold truncate">{item.name}</h3>
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{item.description}</p>
-                      </div>
-                      <div className="flex justify-between items-center mt-2">
-                        <span className="font-semibold">₹{item.price.toFixed(2)}</span>
+                    
+                    <div className="flex-1">
+                      <h3 className="font-medium text-lg text-gray-900">{item.name}</h3>
+                      <p className="mt-1 text-sm text-gray-500 line-clamp-2">{item.description}</p>
+                      <div className="mt-auto flex items-center justify-between">
+                        <div className="font-medium">₹{item.price.toFixed(2)}</div>
                         
-                        {getItemQuantity(item.id) === 0 ? (
-                          <button
-                            className="bg-white text-green-600 px-4 py-2 rounded-full text-sm font-semibold border border-green-600 hover:bg-green-50 transition-colors"
-                            onClick={() => addItem({
-                              id: item.id,
-                              name: item.name,
-                              price: item.price,
-                            })}
-                          >
-                            ADD
-                          </button>
-                        ) : (
-                          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full">
-                            <button
-                              className="w-8 h-8 flex items-center justify-center text-green-600 hover:bg-green-50 rounded-full"
-                              onClick={() => updateQuantity(item.id, getItemQuantity(item.id) - 1)}
+                        {quantities[item.id] ? (
+                          <div className="flex items-center">
+                            <button 
+                              className="w-8 h-8 flex items-center justify-center text-green-600 border border-green-600 rounded-full"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleQuantityChange(item.id, quantities[item.id] - 1);
+                              }}
                             >
                               -
                             </button>
-                            <span className="w-8 text-center font-semibold">{getItemQuantity(item.id)}</span>
-                            <button
-                              className="w-8 h-8 flex items-center justify-center text-green-600 hover:bg-green-50 rounded-full"
-                              onClick={() => updateQuantity(item.id, getItemQuantity(item.id) + 1)}
+                            <span className="mx-3 min-w-[1.5rem] text-center">{quantities[item.id]}</span>
+                            <button 
+                              className="w-8 h-8 flex items-center justify-center text-green-600 border border-green-600 rounded-full"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleQuantityChange(item.id, quantities[item.id] + 1);
+                              }}
                             >
                               +
                             </button>
                           </div>
+                        ) : (
+                          <button
+                            className="px-4 py-1 text-sm font-medium text-green-600 border border-green-600 rounded-full uppercase hover:bg-green-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddToCart(item);
+                            }}
+                          >
+                            ADD
+                          </button>
                         )}
                       </div>
                     </div>
                   </div>
-                ))}
+                </div>
+              ))}
             </div>
           </div>
         ))}
       </main>
 
-      {/* Quick Look Modal */}
-      {selectedDish && (
-        <>
-          {/* Backdrop */}
-          <div 
-            className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${
-              isClosing ? 'opacity-0' : 'opacity-100'
-            }`}
-            onClick={handleCloseQuickLook}
-          />
-          
-          {/* Modal */}
-          <div 
-            className={`fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl z-50 transition-transform duration-300 transform ${
-              isClosing ? 'translate-y-full' : 'translate-y-0'
-            }`}
-            style={{ maxHeight: '85vh' }}
-          >
-            {/* Drag Handle */}
-            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-3 mb-2" />
-
-            <div className="relative p-4">
-              {/* Close Button */}
-              <button 
-                onClick={handleCloseQuickLook}
-                className="absolute right-4 top-4 text-gray-500 hover:text-gray-700 z-10 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-md"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-
-              {/* Image */}
-              <div className="w-full h-64 relative rounded-2xl overflow-hidden mb-4">
+      {/* Item details modal */}
+      {isModalOpen && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setIsModalOpen(false)}></div>
+          <div className="bg-white w-full max-h-[90vh] overflow-auto z-10 relative rounded-t-xl m-4">
+            <div className="relative">
+              <div className="h-64 relative">
                 <Image
-                  src={selectedDish.imageUrl}
-                  alt={selectedDish.name}
+                  src={selectedItem.image_url || '/placeholder-food.jpg'}
+                  alt={selectedItem.name}
                   fill
                   className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 768px"
                 />
-                {selectedDish.offer && (
-                  <div className="absolute top-4 left-4 bg-orange-100 text-orange-600 px-3 py-1 rounded-full text-sm font-medium">
-                    {selectedDish.offer}
+                {selectedItem.offer && (
+                  <div className="absolute top-4 left-4">
+                    <div className="bg-white text-orange-500 font-medium px-3 py-1 rounded-full text-sm">
+                      {selectedItem.offer}
+                    </div>
+                  </div>
+                )}
+                <button
+                  className="absolute top-4 right-4 bg-white rounded-full p-2"
+                  onClick={() => setIsModalOpen(false)}
+                >
+                  <svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              <div className="flex items-center">
+                <h2 className="text-2xl font-bold text-gray-800">{selectedItem.name}</h2>
+                {selectedItem.is_veg && (
+                  <div className="ml-2">
+                    <div className="w-5 h-5 border border-green-600 flex items-center justify-center">
+                      <div className="w-3 h-3 bg-green-600 rounded-full"></div>
+                    </div>
                   </div>
                 )}
               </div>
-
-              {/* Details */}
-              <div className="space-y-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h2 className="text-xl font-bold">{selectedDish.name}</h2>
-                      {selectedDish.isVeg && (
-                        <div className="w-4 h-4 bg-white rounded-sm flex items-center justify-center border border-green-600">
-                          <div className="w-2 h-2 rounded-full bg-green-600" />
-                        </div>
-                      )}
-                    </div>
-                    {selectedDish.rating && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="flex items-center gap-1 bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                          {selectedDish.rating}
-                        </span>
-                        <span className="text-gray-500">({selectedDish.ratingCount} ratings)</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <div className="flex items-center gap-2">
-                      {selectedDish.originalPrice && (
-                        <span className="text-gray-500 line-through">₹{selectedDish.originalPrice}</span>
-                      )}
-                      <span className="text-xl font-bold">₹{selectedDish.price}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {(selectedDish.calories || selectedDish.protein) && (
-                  <div className="flex gap-4 text-sm text-gray-600 border-t border-b border-gray-100 py-3">
-                    {selectedDish.calories && (
-                      <div>
-                        <span className="font-medium">Energy - </span>
-                        {selectedDish.calories}kcal
-                      </div>
-                    )}
-                    {selectedDish.protein && (
-                      <div>
-                        <span className="font-medium">Protein - </span>
-                        {selectedDish.protein}gm
-                      </div>
+              
+              <div className="flex items-center mt-1">
+                {selectedItem.rating && (
+                  <div className="flex items-center bg-green-50 px-2 py-1 rounded text-sm">
+                    <span className="text-green-700 font-medium">★ {selectedItem.rating}</span>
+                    {selectedItem.rating_count && (
+                      <span className="text-gray-600 ml-1">({selectedItem.rating_count} ratings)</span>
                     )}
                   </div>
                 )}
-
-                <p className="text-gray-600">{selectedDish.description}</p>
-
-                <div className="pt-4">
-                  {getItemQuantity(selectedDish.id) === 0 ? (
-                    <button
-                      className="w-full bg-black text-white py-3 rounded-full text-sm font-semibold hover:bg-gray-800 transition-colors"
-                      onClick={() => {
-                        addItem({
-                          id: selectedDish.id,
-                          name: selectedDish.name,
-                          price: selectedDish.price,
-                        });
-                        handleCloseQuickLook();
-                      }}
-                    >
-                      ADD
-                    </button>
-                  ) : (
-                    <div className="flex items-center justify-center gap-3 bg-black text-white py-2 rounded-full">
-                      <button
-                        className="w-12 h-8 flex items-center justify-center hover:bg-gray-800 rounded-full"
-                        onClick={() => updateQuantity(selectedDish.id, getItemQuantity(selectedDish.id) - 1)}
-                      >
-                        -
-                      </button>
-                      <span className="w-8 text-center font-semibold">{getItemQuantity(selectedDish.id)}</span>
-                      <button
-                        className="w-12 h-8 flex items-center justify-center hover:bg-gray-800 rounded-full"
-                        onClick={() => updateQuantity(selectedDish.id, getItemQuantity(selectedDish.id) + 1)}
-                      >
-                        +
-                      </button>
+              </div>
+              
+              <div className="flex items-center mt-3">
+                <span className="text-2xl font-bold">₹{selectedItem.price}</span>
+                {selectedItem.original_price && (
+                  <span className="ml-2 text-gray-500 line-through">₹{selectedItem.original_price}</span>
+                )}
+              </div>
+              
+              {(selectedItem.calories || selectedItem.protein) && (
+                <div className="flex mt-4 text-sm text-gray-600">
+                  {selectedItem.calories && (
+                    <div className="mr-4">
+                      <span>Energy - {selectedItem.calories}kcal</span>
+                    </div>
+                  )}
+                  {selectedItem.protein && (
+                    <div>
+                      <span>Protein - {selectedItem.protein}gm</span>
                     </div>
                   )}
                 </div>
+              )}
+              
+              <div className="mt-4">
+                <p className="text-gray-700 text-base">{selectedItem.description}</p>
               </div>
+              
+              <button
+                onClick={() => {
+                  handleAddToCart(selectedItem);
+                  setIsModalOpen(false);
+                }}
+                className="mt-6 w-full py-3 bg-black text-white font-medium rounded-lg"
+              >
+                ADD
+              </button>
             </div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* Categories Quick Navigation */}
-      <div className={`fixed right-4 z-20 transition-all duration-300 ${
-        itemCount > 0 ? 'bottom-32' : 'bottom-8'
-      }`}>
+      {/* Cart floating pill - updated to be more stretched and fully clickable */}
+      {cartItems.length > 0 && (
+        <Link href="/cart">
+          <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 w-[95%] max-w-md mx-auto bg-black text-white py-3 px-6 rounded-full flex justify-between items-center shadow-lg z-20 cursor-pointer hover:bg-gray-800 transition-all">
+            <div className="flex items-center">
+              <div className="bg-white text-black rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium mr-2">
+                {cartItems.reduce((total, item) => total + item.quantity, 0)}
+              </div>
+              <span className="font-medium">View Cart</span>
+            </div>
+            <div className="font-bold">₹{calculateCartTotal().toFixed(2)}</div>
+          </div>
+        </Link>
+      )}
+
+      {/* Floating menu button and categories submenu */}
+      <div className="fixed bottom-20 right-4 z-10">
         <button
-          onClick={() => {
-            if (showCategories && !isClosing) {
-              setIsClosing(true);
-              setTimeout(() => {
-                setShowCategories(false);
-                setIsClosing(false);
-              }, 200);
-            } else if (!showCategories) {
-              setShowCategories(true);
-            }
-          }}
-          className="w-12 h-12 bg-black text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 transition-all duration-200 active:scale-95"
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          className="w-12 h-12 rounded-full bg-black flex items-center justify-center shadow-lg text-white"
         >
-          <svg 
-            className={`w-6 h-6 transition-transform duration-200 ${showCategories ? 'rotate-180' : ''}`} 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
 
-        {/* Categories Popup */}
-        {showCategories && (
-          <div 
-            className={`absolute bottom-14 right-0 bg-white rounded-lg shadow-xl p-2 min-w-[200px]
-              animate-${isClosing ? 'slideOut' : 'slideIn'} origin-bottom-right`}
-            style={{
-              animation: isClosing 
-                ? 'slideOut 0.2s ease-out forwards'
-                : 'slideIn 0.2s ease-out forwards'
-            }}
-          >
-            {categories.map(category => (
-              <button
-                key={category}
-                onClick={() => handleCategoryClick(category)}
-                className={`w-full text-left px-4 py-2 rounded-lg text-sm transition-all duration-200
-                  ${selectedCategory === category 
-                    ? 'bg-gray-100 font-semibold' 
-                    : 'hover:bg-gray-50'
-                  }
-                  transform hover:translate-x-1
-                `}
-              >
-                {category}
-                <span className="float-right text-gray-400">›</span>
-              </button>
-            ))}
+        {/* Categories popup menu */}
+        {isMenuOpen && (
+          <div className="absolute bottom-16 right-0 bg-white rounded-lg shadow-xl p-4 min-w-[180px] border border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">Jump to</h3>
+            <div className="flex flex-col gap-2">
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  onClick={() => scrollToCategory(category)}
+                  className="text-left text-sm py-2 px-3 hover:bg-gray-100 rounded-md transition-colors"
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
-
-      {/* Add these styles to your CSS */}
-      <style jsx global>{`
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: scale(0.95) translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-
-        @keyframes slideOut {
-          from {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-          to {
-            opacity: 0;
-            transform: scale(0.95) translateY(10px);
-          }
-        }
-      `}</style>
-
-      {/* Fixed Cart Button */}
-      {itemCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-          <div className="max-w-md mx-auto">
-            <Link
-              href="/cart"
-              className="flex items-center justify-between bg-black text-white p-4 rounded-full shadow-lg hover:bg-gray-800 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span className="bg-white text-black w-6 h-6 rounded-full flex items-center justify-center text-sm font-semibold">
-                  {itemCount}
-                </span>
-                <span className="font-semibold">View Cart</span>
-              </div>
-              <span className="font-semibold">₹{itemTotal.toFixed(2)}</span>
-            </Link>
-          </div>
-        </div>
-      )}
     </div>
   );
 } 

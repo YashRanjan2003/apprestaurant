@@ -2,15 +2,40 @@
 
 import Link from 'next/link';
 import { useCart } from '@/lib/context/CartContext';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, calculateTotals, clearCart } = useCart();
   const [couponCode, setCouponCode] = useState('');
   const [showCouponInput, setShowCouponInput] = useState(false);
+  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Get all totals
   const { itemTotal, gst, platformFee, deliveryCharge, finalTotal } = calculateTotals();
+
+  // Check if scroll indicator should be shown
+  useEffect(() => {
+    if (items.length <= 2) return;
+    
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+    
+    const checkScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      // Show indicator only when not scrolled and content is scrollable
+      const isScrollable = scrollHeight > clientHeight;
+      const hasNotScrolledMuch = scrollTop < 10;
+      setShowScrollIndicator(isScrollable && hasNotScrolledMuch);
+    };
+    
+    // Check immediately
+    checkScroll();
+    
+    // Add scroll listener
+    scrollContainer.addEventListener('scroll', checkScroll);
+    return () => scrollContainer.removeEventListener('scroll', checkScroll);
+  }, [items]);
 
   // Constants
   const freeDeliveryThreshold = 500.00;
@@ -18,7 +43,7 @@ export default function CartPage() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="h-[100dvh] flex flex-col">
         <header className="bg-white shadow-sm">
           <div className="max-w-md mx-auto px-4 py-4 flex items-center">
             <Link href="/menu" className="text-gray-800">
@@ -47,7 +72,7 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="max-w-md mx-auto h-[100dvh] bg-white shadow-sm flex flex-col">
       <header className="bg-white shadow-sm">
         <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center">
@@ -68,7 +93,11 @@ export default function CartPage() {
         </div>
       </header>
 
-      <main className="flex-1 p-4">
+      {/* Scrollable cart items */}
+      <main 
+        ref={scrollContainerRef} 
+        className="flex-1 p-4 overflow-y-auto relative"
+      >
         <div className="space-y-4">
           {items.map((item) => (
             <div key={item.id} className="bg-white rounded-lg shadow-sm p-4">
@@ -108,9 +137,29 @@ export default function CartPage() {
             </div>
           ))}
         </div>
+        
+        {/* Scroll indicator arrow */}
+        {showScrollIndicator && (
+          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 animate-bounce">
+            <svg 
+              className="w-5 h-5 text-gray-400" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M19 9l-7 7-7-7" 
+              />
+            </svg>
+          </div>
+        )}
       </main>
 
-      <footer className="bg-white border-t">
+      {/* Fixed footer with bill details */}
+      <footer className="bg-white border-t shadow-md">
         <div className="max-w-md mx-auto px-4 py-4">
           {/* Coupon Section */}
           {!showCouponInput ? (
@@ -161,29 +210,6 @@ export default function CartPage() {
               <div className="flex justify-between">
                 <span className="text-gray-600">Platform Fee</span>
                 <span>₹{platformFee.toFixed(2)}</span>
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Delivery Charge</span>
-                  <div className="text-right">
-                    {itemTotal >= freeDeliveryThreshold ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-400 line-through">₹{standardDeliveryCharge.toFixed(2)}</span>
-                        <span className="text-green-600 font-medium">Free</span>
-                      </div>
-                    ) : (
-                      <span>₹{deliveryCharge.toFixed(2)}</span>
-                    )}
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500">Free delivery on orders above ₹{freeDeliveryThreshold}</p>
-              </div>
-              {/* Savings message if there are any discounted items */}
-              <div className="flex items-center text-green-600 text-sm py-2">
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                You save ₹90.00 on this order!
               </div>
             </div>
           </div>

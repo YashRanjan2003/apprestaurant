@@ -9,7 +9,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
   const [formData, setFormData] = useState({
-    username: '',
+    phone: '',
     password: '',
   });
   const [error, setError] = useState('');
@@ -21,21 +21,21 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login(formData);
+      await login({ phone: formData.phone });
       // Check if there's a redirect URL in localStorage
       const redirectUrl = localStorage.getItem('redirectUrl') || '/';
       localStorage.removeItem('redirectUrl'); // Clear the redirect URL
       router.push(redirectUrl);
     } catch (err) {
       console.error('Login failed:', err);
-      setError('Invalid username or password');
+      setError('Invalid phone number or verification failed');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="max-w-md mx-auto min-h-screen bg-white shadow-sm">
       <header className="bg-white shadow-sm">
         <div className="max-w-md mx-auto px-4 py-4 flex items-center">
           <Link href="/" className="text-gray-800">
@@ -57,17 +57,17 @@ export default function LoginPage() {
           )}
 
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-              Username
+            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+              Phone Number
             </label>
             <input
-              type="text"
-              id="username"
+              type="tel"
+              id="phone"
               required
-              value={formData.username}
-              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
-              placeholder="Enter your username"
+              placeholder="Enter your phone number"
             />
           </div>
 

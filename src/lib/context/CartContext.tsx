@@ -1,23 +1,12 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 interface CartItem {
   id: string;
   name: string;
   price: number;
   quantity: number;
-  category: string;
-  imageUrl: string;
-}
-
-interface Discount {
-  code: string;
-  type: 'PERCENTAGE' | 'FIXED' | 'BOGO';
-  value: number;
-  discountAmount: number;
-  minOrderValue?: number;
-  maxDiscount?: number;
 }
 
 interface CartTotals {
@@ -25,7 +14,6 @@ interface CartTotals {
   gst: number;
   platformFee: number;
   deliveryCharge: number;
-  discount: number;
   finalTotal: number;
 }
 
@@ -37,9 +25,6 @@ interface CartContextType {
   clearCart: () => void;
   itemCount: number;
   calculateTotals: () => CartTotals;
-  applyDiscount: (code: string) => Promise<{ success: boolean; error?: string }>;
-  removeDiscount: () => void;
-  activeDiscount: Discount | null;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -51,10 +36,25 @@ const GST_RATE = 0.05; // 5%
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
-  const [activeDiscount, setActiveDiscount] = useState<Discount | null>(null);
 
-  // Memoize cart operations
-  const addItem = useCallback((newItem: Omit<CartItem, 'quantity'>) => {
+  // Load cart from localStorage on mount
+  useEffect(() => {
+    const savedCart = localStorage.getItem('cart');
+    if (savedCart) {
+      try {
+        setItems(JSON.parse(savedCart));
+      } catch (error) {
+        console.error('Failed to parse cart from localStorage:', error);
+      }
+    }
+  }, []);
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('cart', JSON.stringify(items));
+  }, [items]);
+
+  const addItem = (newItem: Omit<CartItem, 'quantity'>) => {
     setItems(currentItems => {
       const existingItem = currentItems.find(item => item.id === newItem.id);
       if (existingItem) {
@@ -66,13 +66,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       return [...currentItems, { ...newItem, quantity: 1 }];
     });
-  }, []);
+  };
 
-  const removeItem = useCallback((id: string) => {
+  const removeItem = (id: string) => {
     setItems(currentItems => currentItems.filter(item => item.id !== id));
-  }, []);
+  };
 
-  const updateQuantity = useCallback((id: string, quantity: number) => {
+  const updateQuantity = (id: string, quantity: number) => {
     if (quantity < 1) {
       removeItem(id);
       return;
@@ -82,164 +82,53 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         item.id === id ? { ...item, quantity } : item
       )
     );
-  }, [removeItem]);
+  };
 
-  const clearCart = useCallback(() => {
+  const clearCart = () => {
     setItems([]);
-    setActiveDiscount(null);
-  }, []);
+  };
 
-  // Memoize calculations
-  const calculateTotals = useCallback((): CartTotals => {
-    const itemTotal = items.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
-    );
+  const calculateTotals = () => {
+    const itemTotal = items.reduce((total, item) => total + (item.price * item.quantity), 0);
     
-    const gst = itemTotal * GST_RATE;
-    const platformFee = PLATFORM_FEE;
-    const deliveryCharge = itemTotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_CHARGE;
+    // Calculate GST (5%)
+    const gst = itemTotal * 0.05;
     
-    let discount = 0;
-    if (activeDiscount) {
-      if (activeDiscount.type === 'PERCENTAGE') {
-        discount = (itemTotal * activeDiscount.value) / 100;
-        if (activeDiscount.maxDiscount) {
-          discount = Math.min(discount, activeDiscount.maxDiscount);
-        }
-      } else if (activeDiscount.type === 'FIXED') {
-        discount = activeDiscount.value;
-      }
-    }
-
-    const finalTotal = itemTotal + gst + platformFee + deliveryCharge - discount;
-
+    // Fixed platform fee
+    const platformFee = 15.00;
+    
+    // No delivery charge as we only offer pickup
+    const deliveryCharge = 0;
+    
+    // Calculate final total
+    const finalTotal = itemTotal + gst + platformFee + deliveryCharge;
+    
     return {
       itemTotal,
       gst,
       platformFee,
       deliveryCharge,
-      discount,
       finalTotal
     };
-  }, [items, activeDiscount]);
+  };
 
-  // Debounced discount validation
-  const applyDiscount = useCallback(async (code: string) => {
-    try {
-      const { itemTotal } = calculateTotals();
-      const categories = [...new Set(items.map(item => item.category))];
-
-      const response = await fetch('/api/discounts/validate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          code,
-          cartTotal: itemTotal,
-          categories,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error);
-      }
-
-      setActiveDiscount(data.discount);
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to apply discount',
-      };
-    }
-  }, [items, calculateTotals]);
-
-  const removeDiscount = useCallback(() => {
-    setActiveDiscount(null);
-  }, []);
-
-  // Memoize item count
-  const itemCount = useMemo(() => 
-    items.reduce((count, item) => count + item.quantity, 0),
-    [items]
+  const itemCount = items.reduce(
+    (count, item) => count + item.quantity,
+    0
   );
 
-  // Memoize context value
-  const contextValue = useMemo(() => ({
-    items,
-    addItem,
-    removeItem,
-    updateQuantity,
-    clearCart,
-    itemCount,
-    calculateTotals,
-    applyDiscount,
-    removeDiscount,
-    activeDiscount,
-  }), [
-    items,
-    addItem,
-    removeItem,
-    updateQuantity,
-    clearCart,
-    itemCount,
-    calculateTotals,
-    applyDiscount,
-    removeDiscount,
-    activeDiscount,
-  ]);
-
-  // Load cart data only once on mount
-  useEffect(() => {
-    const loadSavedData = () => {
-      const savedCart = localStorage.getItem('cart');
-      const savedDiscount = localStorage.getItem('cartDiscount');
-      
-      if (savedCart) {
-        try {
-          setItems(JSON.parse(savedCart));
-        } catch (error) {
-          console.error('Failed to parse cart from localStorage:', error);
-        }
-      }
-      
-      if (savedDiscount) {
-        try {
-          setActiveDiscount(JSON.parse(savedDiscount));
-        } catch (error) {
-          console.error('Failed to parse discount from localStorage:', error);
-        }
-      }
-    };
-
-    loadSavedData();
-  }, []);
-
-  // Debounce localStorage updates
-  useEffect(() => {
-    const saveTimeout = setTimeout(() => {
-      localStorage.setItem('cart', JSON.stringify(items));
-    }, 300);
-    return () => clearTimeout(saveTimeout);
-  }, [items]);
-
-  useEffect(() => {
-    const saveTimeout = setTimeout(() => {
-      if (activeDiscount) {
-        localStorage.setItem('cartDiscount', JSON.stringify(activeDiscount));
-      } else {
-        localStorage.removeItem('cartDiscount');
-      }
-    }, 300);
-    return () => clearTimeout(saveTimeout);
-  }, [activeDiscount]);
-
   return (
-    <CartContext.Provider value={contextValue}>
+    <CartContext.Provider
+      value={{
+        items,
+        addItem,
+        removeItem,
+        updateQuantity,
+        clearCart,
+        itemCount,
+        calculateTotals,
+      }}
+    >
       {children}
     </CartContext.Provider>
   );

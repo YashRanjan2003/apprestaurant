@@ -9,7 +9,7 @@ export default function SignupPage() {
   const router = useRouter();
   const { signup } = useAuth();
   const [formData, setFormData] = useState({
-    username: '',
+    name: '',
     password: '',
     confirmPassword: '',
     phone: '',
@@ -41,8 +41,7 @@ export default function SignupPage() {
 
     try {
       await signup({
-        username: formData.username,
-        password: formData.password,
+        name: formData.name,
         phone: formData.phone,
         email: formData.email || undefined,
       });
@@ -60,7 +59,7 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="max-w-md mx-auto min-h-screen bg-white shadow-sm">
       <header className="bg-white shadow-sm">
         <div className="max-w-md mx-auto px-4 py-4 flex items-center">
           <Link href="/" className="text-gray-800">
@@ -82,17 +81,17 @@ export default function SignupPage() {
           )}
 
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-              Username
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+              Name
             </label>
             <input
               type="text"
-              id="username"
+              id="name"
               required
-              value={formData.username}
-              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
-              placeholder="Choose a username"
+              placeholder="Enter your name"
             />
           </div>
 
