@@ -295,7 +295,17 @@ export default function MenuPage() {
                     </div>
                     
                     <div className="flex-1">
-                      <h3 className="font-medium text-lg text-gray-900">{item.name}</h3>
+                      <div className="flex justify-between items-start">
+                        <h3 className="font-medium text-lg text-gray-900">{item.name}</h3>
+                        {item.rating && (
+                          <div className="flex items-center text-sm text-yellow-500">
+                            <span className="font-medium mr-1">★ {item.rating}</span>
+                            {item.rating_count && (
+                              <span className="text-gray-500 text-xs">({item.rating_count})</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       <p className="mt-1 text-sm text-gray-500 line-clamp-2">{item.description}</p>
                       <div className="mt-auto flex items-center justify-between">
                         <div className="font-medium">₹{item.price.toFixed(2)}</div>

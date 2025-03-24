@@ -33,11 +33,30 @@ export async function getMenuItemsByCategory(categoryId: string) {
 export async function getAllMenuItems() {
   const { data, error } = await supabase
     .from('menu_items')
-    .select('*, menu_categories(name)')
+    .select(`
+      *,
+      menu_categories(name),
+      item_feedback(rating)
+    `)
     .eq('available', true);
   
   if (error) throw error;
-  return data;
+
+  // Calculate average rating for each item
+  const itemsWithRating = data.map(item => {
+    const ratings = item.item_feedback?.map(f => f.rating) || [];
+    const avgRating = ratings.length > 0 
+      ? ratings.reduce((a, b) => a + b, 0) / ratings.length 
+      : null;
+    
+    return {
+      ...item,
+      rating: avgRating ? Number(avgRating.toFixed(1)) : null,
+      rating_count: ratings.length
+    };
+  });
+
+  return itemsWithRating;
 }
 
 /**

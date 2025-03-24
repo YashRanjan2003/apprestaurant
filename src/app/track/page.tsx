@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useState, useEffect, Suspense } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useSearchParams } from 'next/navigation';
+import FeedbackForm from '@/components/FeedbackForm';
+import { Toaster } from 'react-hot-toast';
 
 interface OrderItem {
   id: string;
@@ -131,8 +133,12 @@ function TrackOrderContent() {
     return statusMap[status] || { text: status, color: 'bg-gray-100 text-gray-700' };
   };
 
+  // Check if order is delivered and can be rated
+  const canLeaveFeedback = order?.status === 'delivered';
+
   return (
     <div className="max-w-md mx-auto min-h-screen bg-white shadow-sm">
+      <Toaster position="top-center" />
       <header className="bg-white shadow-sm">
         <div className="max-w-md mx-auto px-4 py-4 flex items-center">
           <Link href="/" className="text-gray-800">
@@ -242,6 +248,11 @@ function TrackOrderContent() {
                   </div>
                 </div>
               </div>
+
+              {/* Feedback Form (only shown for delivered orders) */}
+              {canLeaveFeedback && (
+                <FeedbackForm orderId={order.id} items={order.items} />
+              )}
 
               {/* Help Section */}
               <div className="bg-white rounded-lg p-6 shadow-sm">
