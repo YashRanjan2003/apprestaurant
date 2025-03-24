@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useSearchParams } from 'next/navigation';
 import FeedbackForm from '@/components/FeedbackForm';
 import { Toaster } from 'react-hot-toast';
+import { getStoredOrders } from '@/lib/utils/orders';
 
 interface OrderItem {
   id: string;
@@ -34,6 +35,7 @@ interface OrderDetails {
   customer_name: string;
   customer_phone: string;
   customer_email: string | null;
+  expiresAt: string;
 }
 
 // Create a client component that uses search params
@@ -42,7 +44,13 @@ function TrackOrderContent() {
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recentOrders, setRecentOrders] = useState<ReturnType<typeof getStoredOrders>>([]);
   const searchParams = useSearchParams();
+
+  // Load recent orders on mount
+  useEffect(() => {
+    setRecentOrders(getStoredOrders());
+  }, []);
 
   // Auto-fetch order if OTP is provided in URL
   useEffect(() => {
@@ -92,7 +100,8 @@ function TrackOrderContent() {
         createdAt: data.created_at,
         customer_name: data.customer_name,
         customer_phone: data.customer_phone,
-        customer_email: data.customer_email
+        customer_email: data.customer_email,
+        expiresAt: data.expires_at
       };
       
       return orderDetails;
@@ -154,34 +163,118 @@ function TrackOrderContent() {
       <main className="flex-1 p-4">
         <div className="max-w-md mx-auto">
           {!order ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="bg-white rounded-lg p-6 shadow-sm">
-                <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-1">
-                  Enter Order Code
-                </label>
-                <input
-                  type="text"
-                  id="otp"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="Enter 6-digit code"
-                  className="w-full px-4 py-3 rounded-lg border focus:ring-2 focus:ring-black focus:border-black text-lg tracking-wider text-center font-mono"
-                  maxLength={6}
-                  required
-                  pattern="[0-9]{6}"
-                />
-                {error && (
-                  <p className="mt-2 text-red-600 text-sm">{error}</p>
-                )}
-                <button
-                  type="submit"
-                  disabled={isLoading || otp.length !== 6}
-                  className="w-full mt-4 bg-black text-white py-3 rounded-full font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoading ? 'Searching...' : 'Track Order'}
-                </button>
-              </div>
-            </form>
+            <>
+              <form onSubmit={handleSubmit} className="space-y-4 mb-6">
+                <div className="bg-white rounded-lg p-6 shadow-sm">
+                  <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-1">
+                    Enter Order Code
+                  </label>
+                  <input
+                    type="text"
+                    id="otp"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    placeholder="Enter 6-digit code"
+                    className="w-full px-4 py-3 rounded-lg border focus:ring-2 focus:ring-black focus:border-black text-lg tracking-wider text-center font-mono"
+                    maxLength={6}
+                    required
+                    pattern="[0-9]{6}"
+                  />
+                  {error && (
+                    <p className="mt-2 text-red-600 text-sm">{error}</p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={isLoading || otp.length !== 6}
+                    className="w-full mt-4 bg-black text-white py-3 rounded-full font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? 'Searching...' : 'Track Order'}
+                  </button>
+                </div>
+              </form>
+
+              {/* Recent Orders Section */}
+              {recentOrders.length > 0 && (
+                <>
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200"></div>
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-white px-4 text-sm text-gray-500">or choose from recent orders</span>
+                    </div>
+                  </div>
+
+                  <div className="mb-6">
+                    <h2 className="text-sm font-medium text-gray-700 mb-3">Recent Orders</h2>
+                    <div className="space-y-3">
+                      {recentOrders.map((recentOrder) => (
+                        <button
+                          key={recentOrder.id}
+                          onClick={async () => {
+                            setIsLoading(true);
+                            setError(null);
+                            try {
+                              const orderDetails = await fetchOrderByOtp(recentOrder.otp);
+                              setOrder(orderDetails);
+                            } catch (err) {
+                              console.error('Failed to fetch order:', err);
+                              setError('Failed to load order. Please try again.');
+                            } finally {
+                              setIsLoading(false);
+                            }
+                          }}
+                          className="w-full bg-white rounded-lg p-4 shadow-sm border border-gray-100 hover:border-black transition-colors text-left flex items-center gap-4"
+                        >
+                          <div className={`flex-none w-12 h-12 rounded-full flex items-center justify-center ${
+                            recentOrder.status === 'delivered' ? 'bg-green-100' :
+                            recentOrder.status === 'cancelled' ? 'bg-red-100' :
+                            'bg-yellow-100'
+                          }`}>
+                            <svg className={`w-6 h-6 ${
+                              recentOrder.status === 'delivered' ? 'text-green-700' :
+                              recentOrder.status === 'cancelled' ? 'text-red-700' :
+                              'text-yellow-700'
+                            }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              {recentOrder.status === 'delivered' ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              ) : recentOrder.status === 'cancelled' ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              )}
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="text-sm font-medium truncate">{recentOrder.customer_name}</div>
+                                <div className="text-xs text-gray-500">Order #{recentOrder.otp}</div>
+                              </div>
+                              <div className={`text-xs px-2 py-1 rounded-full ${
+                                recentOrder.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                                recentOrder.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                'bg-yellow-100 text-yellow-700'
+                              }`}>
+                                {recentOrder.status.charAt(0).toUpperCase() + recentOrder.status.slice(1)}
+                              </div>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Available until {new Date(recentOrder.expiresAt).toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="flex-none text-gray-400">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
           ) : (
             <div className="space-y-4">
               {/* Order Status */}
@@ -193,6 +286,13 @@ function TrackOrderContent() {
                   </span>
                 </div>
                 <div className="text-sm space-y-2">
+                  <p className="mb-1">
+                    <span className="text-gray-600">Order ID:</span>{' '}
+                    <span className="text-red-600 font-medium">{order.otp}</span>
+                  </p>
+                  <p className="text-xs text-red-500 mb-3 italic">
+                    Please save this order ID. You'll need it to track your order status and to receive your order at pickup.
+                  </p>
                   <p>
                     <span className="text-gray-600">Order Type:</span>{' '}
                     Pickup

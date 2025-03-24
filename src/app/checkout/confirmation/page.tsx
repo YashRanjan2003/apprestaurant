@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { storeOrder } from '@/lib/utils/orders';
 
 interface OrderDetails {
   id: string;
@@ -37,7 +38,17 @@ export default function ConfirmationPage() {
   useEffect(() => {
     const orderData = localStorage.getItem('lastOrder');
     if (orderData) {
-      setOrder(JSON.parse(orderData));
+      const orderDetails = JSON.parse(orderData);
+      setOrder(orderDetails);
+      
+      // Store in recent orders
+      storeOrder({
+        id: orderDetails.id,
+        otp: orderDetails.otp,
+        customer_name: orderDetails.customer.name,
+        status: orderDetails.status,
+        expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+      });
     }
   }, []);
 
@@ -101,10 +112,25 @@ export default function ConfirmationPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-green-600 mb-2">Order Confirmed!</h2>
-              <p className="text-gray-600">
-                Your order has been received and is being prepared.
-              </p>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold">Order Confirmed!</h2>
+                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+                  Order Placed
+                </span>
+              </div>
+              <div className="text-sm space-y-2">
+                <p className="mb-1">
+                  <span className="text-gray-600">Order ID:</span>{' '}
+                  <span className="text-red-600 font-medium">{order.otp}</span>
+                </p>
+                <p className="text-xs text-red-500 mb-3 italic">
+                  Important: Save this order ID. You'll need it to track your order status and to receive your order at pickup.
+                </p>
+                <p>
+                  <span className="text-gray-600">Order Type:</span>{' '}
+                  Pickup
+                </p>
+              </div>
             </>
           )}
         </div>
