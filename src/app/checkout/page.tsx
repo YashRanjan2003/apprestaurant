@@ -13,7 +13,6 @@ export default function CheckoutPage() {
   const { items, clearCart, calculateTotals } = useCart();
   const [isProcessing, setIsProcessing] = useState(false);
   const [scheduledTime, setScheduledTime] = useState('');
-  const [customTime, setCustomTime] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('card');
   const [orderError, setOrderError] = useState<string | null>(null);
   const [totals, setTotals] = useState({
@@ -97,15 +96,6 @@ export default function CheckoutPage() {
   const formatScheduledTime = () => {
     if (!scheduledTime || scheduledTime === '') return new Date().toISOString();
     
-    if (scheduledTime === 'other' && customTime) {
-      const [hours, minutes] = customTime.split(':');
-      const date = new Date();
-      date.setHours(parseInt(hours, 10));
-      date.setMinutes(parseInt(minutes, 10));
-      date.setSeconds(0);
-      return date.toISOString();
-    }
-    
     // For relative times (30, 60, 90, 120 minutes)
     const minutes = parseInt(scheduledTime, 10);
     if (!isNaN(minutes)) {
@@ -175,7 +165,7 @@ export default function CheckoutPage() {
         finalTotal: finalAmount,
         orderType: 'pickup',
         deliveryAddress: null,
-        scheduledTime: scheduledTime === 'other' ? customTime : (scheduledTime || 'ASAP'),
+        scheduledTime: scheduledTime || 'ASAP',
         paymentMethod,
         otp,
         customer: {
@@ -351,12 +341,7 @@ export default function CheckoutPage() {
             <select
               id="time"
               value={scheduledTime}
-              onChange={(e) => {
-                setScheduledTime(e.target.value);
-                if (e.target.value !== 'other') {
-                  setCustomTime('');
-                }
-              }}
+              onChange={(e) => setScheduledTime(e.target.value)}
               className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
             >
               <option value="">ASAP</option>
@@ -364,25 +349,7 @@ export default function CheckoutPage() {
               <option value="60">In 1 hour</option>
               <option value="90">In 1.5 hours</option>
               <option value="120">In 2 hours</option>
-              <option value="other">Other</option>
             </select>
-            
-            {scheduledTime === 'other' && (
-              <div className="mt-2">
-                <input
-                  type="time"
-                  value={customTime}
-                  onChange={(e) => setCustomTime(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-black focus:border-black"
-                  required
-                  min={new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}
-                  max="23:59"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Please select a time today between {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} and 11:59 PM
-                </p>
-              </div>
-            )}
           </div>
 
           {/* Payment Method */}

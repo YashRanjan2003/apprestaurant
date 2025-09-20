@@ -158,6 +158,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </Link>
             </li>
             <li>
+              <Link 
+                href="/admin/settings" 
+                className={`block px-4 py-2 hover:bg-gray-700 ${pathname?.startsWith('/admin/settings') ? 'bg-gray-700' : ''}`}
+              >
+                Restaurant Settings
+              </Link>
+            </li>
+            <li>
               <button 
                 onClick={handleLogout}
                 className="block w-full text-left px-4 py-2 hover:bg-gray-700 text-gray-300"
@@ -179,6 +187,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               {pathname === '/admin/menu' && 'Menu Management'}
               {pathname === '/admin/categories' && 'Categories Management'}
               {pathname === '/admin/users' && 'User Management'}
+              {pathname?.startsWith('/admin/settings') && 'Restaurant Settings'}
             </h1>
           </div>
         </header>
