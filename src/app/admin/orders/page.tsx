@@ -123,6 +123,29 @@ export default function OrdersPage() {
 
   useEffect(() => {
     fetchOrders();
+    
+    // Set up real-time subscription for new orders
+    const subscription = supabase
+      .channel('orders')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        },
+        (payload) => {
+          console.log('Order change received:', payload);
+          // Refresh orders when there's any change
+          fetchOrders();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on component unmount
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [fetchOrders]);
 
   // Filter orders by status

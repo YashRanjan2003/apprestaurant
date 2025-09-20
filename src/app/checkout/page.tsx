@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useCart } from '@/lib/context/CartContext';
 import { createOrder, updateOrderPayment } from '@/lib/supabase/orders';
 import { initializeRazorpayPayment } from '@/lib/utils/razorpay';
+import { getPlatformFees, getRestaurantSettings, isRestaurantOpen } from '@/lib/supabase/settings';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -15,26 +16,71 @@ export default function CheckoutPage() {
   const [customTime, setCustomTime] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('card');
   const [orderError, setOrderError] = useState<string | null>(null);
+  const [totals, setTotals] = useState({
+    itemTotal: 0,
+    gst: 0,
+    platformFee: 0,
+    deliveryCharge: 0,
+    finalTotal: 0
+  });
+  const [taxRate, setTaxRate] = useState(5); // Default to 5% but will be updated from settings
+  const [paymentSettings, setPaymentSettings] = useState({
+    accept_credit_cards: true,
+    accept_cash: true
+  });
   
   // Customer information fields
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
 
-  // Calculate totals
-  const totals = calculateTotals();
+  // Calculate totals, tax rate, and payment settings whenever items change
+  useEffect(() => {
+    const loadSettingsAndTotals = async () => {
+      const [calculatedTotals, fees, restaurantSettings] = await Promise.all([
+        calculateTotals(),
+        getPlatformFees(),
+        getRestaurantSettings()
+      ]);
+      
+      setTotals(calculatedTotals);
+      setTaxRate(Math.round(fees.gstRate * 100)); // Convert decimal to percentage
+      
+      if (restaurantSettings) {
+        setPaymentSettings({
+          accept_credit_cards: restaurantSettings.accept_credit_cards ?? true,
+          accept_cash: restaurantSettings.accept_cash ?? true
+        });
+      }
+    };
+    loadSettingsAndTotals();
+  }, [items, calculateTotals]);
+
   const finalAmount = totals.finalTotal - totals.deliveryCharge;
   
   // Is ASAP delivery selected?
   const isASAPPickup = scheduledTime === '';
 
-  // Update payment method when pickup time changes
+  // Update payment method when pickup time or settings change
   useEffect(() => {
     // If not ASAP and payment method is cash, switch to card
     if (!isASAPPickup && paymentMethod === 'cash') {
-      setPaymentMethod('card');
+      if (paymentSettings.accept_credit_cards) {
+        setPaymentMethod('card');
+      }
     }
-  }, [scheduledTime, isASAPPickup, paymentMethod]);
+    
+    // If current payment method is not available, switch to an available one
+    if (paymentMethod === 'card' && !paymentSettings.accept_credit_cards) {
+      if (paymentSettings.accept_cash) {
+        setPaymentMethod('cash');
+      }
+    } else if (paymentMethod === 'cash' && !paymentSettings.accept_cash) {
+      if (paymentSettings.accept_credit_cards) {
+        setPaymentMethod('card');
+      }
+    }
+  }, [scheduledTime, isASAPPickup, paymentMethod, paymentSettings]);
 
   useEffect(() => {
     // Check if we have items in the cart
@@ -79,6 +125,13 @@ export default function CheckoutPage() {
     setOrderError(null);
 
     try {
+      // Check if restaurant is still open before placing order
+      const restaurantIsOpen = await isRestaurantOpen();
+      if (!restaurantIsOpen) {
+        setOrderError('Sorry, the restaurant is currently closed. Please try again during our operating hours.');
+        setIsProcessing(false);
+        return;
+      }
       // Format the order data for Supabase
       const formattedScheduledTime = formatScheduledTime();
       
@@ -336,18 +389,20 @@ export default function CheckoutPage() {
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <h2 className="font-semibold mb-3">Payment Method</h2>
             <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('card')}
-                className={`flex-1 py-2 rounded-full border-2 ${
-                  paymentMethod === 'card'
-                    ? 'border-black bg-black text-white'
-                    : 'border-gray-200 text-gray-700'
-                }`}
-              >
-                Card
-              </button>
-              {isASAPPickup && (
+              {paymentSettings.accept_credit_cards && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('card')}
+                  className={`flex-1 py-2 rounded-full border-2 ${
+                    paymentMethod === 'card'
+                      ? 'border-black bg-black text-white'
+                      : 'border-gray-200 text-gray-700'
+                  }`}
+                >
+                  Card
+                </button>
+              )}
+              {paymentSettings.accept_cash && isASAPPickup && (
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('cash')}
@@ -361,14 +416,34 @@ export default function CheckoutPage() {
                 </button>
               )}
             </div>
-            {paymentMethod === 'card' && (
+            
+            {!paymentSettings.accept_credit_cards && !paymentSettings.accept_cash && (
+              <p className="mt-2 text-sm text-red-600">
+                No payment methods are currently available. Please contact the restaurant.
+              </p>
+            )}
+            
+            {paymentMethod === 'card' && paymentSettings.accept_credit_cards && (
               <p className="mt-2 text-sm text-gray-600">
                 You'll be redirected to our secure payment partner Razorpay to complete your payment.
               </p>
             )}
-            {!isASAPPickup && (
+            
+            {!isASAPPickup && paymentSettings.accept_cash && (
               <p className="mt-2 text-sm text-gray-600">
                 Cash payment is only available for ASAP pickup orders.
+              </p>
+            )}
+            
+            {!paymentSettings.accept_credit_cards && paymentSettings.accept_cash && (
+              <p className="mt-2 text-sm text-gray-600">
+                Only cash payments are accepted for pickup orders.
+              </p>
+            )}
+            
+            {paymentSettings.accept_credit_cards && !paymentSettings.accept_cash && (
+              <p className="mt-2 text-sm text-gray-600">
+                Only card payments are accepted.
               </p>
             )}
           </div>
@@ -391,7 +466,7 @@ export default function CheckoutPage() {
                   <span>₹{totals.itemTotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">GST (5%)</span>
+                  <span className="text-gray-600">GST ({taxRate}%)</span>
                   <span>₹{totals.gst.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -410,10 +485,10 @@ export default function CheckoutPage() {
 
           <button
             type="submit"
-            disabled={isProcessing}
+            disabled={isProcessing || (!paymentSettings.accept_credit_cards && !paymentSettings.accept_cash)}
             className={`w-full py-3 rounded-lg font-medium ${
-              isProcessing
-                ? 'bg-gray-400 text-white'
+              isProcessing || (!paymentSettings.accept_credit_cards && !paymentSettings.accept_cash)
+                ? 'bg-gray-400 text-white cursor-not-allowed'
                 : 'bg-black text-white hover:bg-gray-800'
             } transition-colors`}
           >

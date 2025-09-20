@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { getPlatformFees } from '@/lib/supabase/settings';
 
 interface CartItem {
   id: string;
@@ -24,15 +25,10 @@ interface CartContextType {
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
   itemCount: number;
-  calculateTotals: () => CartTotals;
+  calculateTotals: () => Promise<CartTotals>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
-
-const PLATFORM_FEE = 15.00;
-const DELIVERY_CHARGE = 40.00;
-const FREE_DELIVERY_THRESHOLD = 500.00;
-const GST_RATE = 0.05; // 5%
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -88,28 +84,69 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems([]);
   };
 
-  const calculateTotals = () => {
+  const calculateTotals = async (): Promise<CartTotals> => {
     const itemTotal = items.reduce((total, item) => total + (item.price * item.quantity), 0);
     
-    // Calculate GST (5%)
-    const gst = itemTotal * 0.05;
-    
-    // Fixed platform fee
-    const platformFee = 15.00;
-    
-    // No delivery charge as we only offer pickup
-    const deliveryCharge = 0;
-    
-    // Calculate final total
-    const finalTotal = itemTotal + gst + platformFee + deliveryCharge;
-    
-    return {
-      itemTotal,
-      gst,
-      platformFee,
-      deliveryCharge,
-      finalTotal
-    };
+    try {
+      const fees = await getPlatformFees();
+      
+      console.log('Fee calculation debug:', {
+        itemTotal,
+        gstRate: fees.gstRate,
+        platformFeeEnabled: fees.platformFeeEnabled,
+        platformFee: fees.platformFee
+      });
+      
+      // Calculate GST from settings - ensure gstRate is a valid number
+      const gstRate = typeof fees.gstRate === 'number' && fees.gstRate > 0 ? fees.gstRate : 0.05;
+      const gst = itemTotal * gstRate;
+      
+      // Platform fee from settings (if enabled)
+      const platformFee = fees.platformFeeEnabled ? (fees.platformFee || 0) : 0;
+      
+      // No delivery charge as we only offer pickup
+      const deliveryCharge = 0;
+      
+      // Calculate final total
+      const finalTotal = itemTotal + gst + platformFee + deliveryCharge;
+      
+      console.log('Calculated totals:', {
+        itemTotal,
+        gst,
+        platformFee,
+        finalTotal
+      });
+      
+      return {
+        itemTotal,
+        gst,
+        platformFee,
+        deliveryCharge,
+        finalTotal
+      };
+    } catch (error) {
+      console.error('Error fetching platform fees:', error);
+      // Fallback to hardcoded values
+      const gst = itemTotal * 0.05;
+      const platformFee = 15.00;
+      const deliveryCharge = 0;
+      const finalTotal = itemTotal + gst + platformFee + deliveryCharge;
+      
+      console.log('Using fallback totals:', {
+        itemTotal,
+        gst,
+        platformFee,
+        finalTotal
+      });
+      
+      return {
+        itemTotal,
+        gst,
+        platformFee,
+        deliveryCharge,
+        finalTotal
+      };
+    }
   };
 
   const itemCount = items.reduce(

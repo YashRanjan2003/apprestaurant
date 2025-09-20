@@ -8,7 +8,14 @@ const nextConfig = {
         port: '',
         pathname: '/storage/v1/object/public/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
+    qualities: [25, 50, 75, 90, 100],
   },
   // Disable TypeScript and ESLint errors during build
   typescript: {

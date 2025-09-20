@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { formatPrice } from '@/lib/utils/helpers';
+import { getRestaurantSettings } from '@/lib/supabase/settings';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -19,6 +20,12 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [popularItems, setPopularItems] = useState<any[]>([]);
+  const [restaurantInfo, setRestaurantInfo] = useState({
+    name: 'Loading...',
+    business_hours: 'Loading...',
+    phone: 'Loading...',
+    email: 'Loading...'
+  });
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -87,6 +94,17 @@ export default function AdminDashboard() {
           .order('created_at', { ascending: false })
           .limit(5);
           
+        // Get restaurant settings
+        const settings = await getRestaurantSettings();
+        if (settings) {
+          setRestaurantInfo({
+            name: settings.name || 'GenZ Cafe',
+            business_hours: settings.business_hours || '11:00 AM - 10:00 PM',
+            phone: settings.phone || '+91 9876543210',
+            email: settings.email || 'contact@genzcafe.com'
+          });
+        }
+        
         // Get popular items (mock data for now)
         setPopularItems([
           { id: 1, name: 'Butter Chicken', orders: 42, revenue: 8400 },
@@ -255,16 +273,16 @@ export default function AdminDashboard() {
               <div className="space-y-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Restaurant Name</h3>
-                  <p className="mt-1 text-gray-800">Delicious Food Restaurant</p>
+                  <p className="mt-1 text-gray-800">{restaurantInfo.name}</p>
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Business Hours</h3>
-                  <p className="mt-1 text-gray-800">Monday - Sunday: 10:00 AM - 10:00 PM</p>
+                  <p className="mt-1 text-gray-800">{restaurantInfo.business_hours}</p>
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Contact Info</h3>
-                  <p className="mt-1 text-gray-800">phone: +91 1234567890</p>
-                  <p className="text-gray-800">email: contact@deliciousfood.com</p>
+                  <p className="mt-1 text-gray-800">Phone: {restaurantInfo.phone}</p>
+                  <p className="text-gray-800">Email: {restaurantInfo.email}</p>
                 </div>
                 <Link href="/admin/settings" className="inline-block text-sm text-blue-600 hover:text-blue-800">
                   Edit store information →

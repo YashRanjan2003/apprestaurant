@@ -3,16 +3,38 @@
 import Link from 'next/link';
 import { useCart } from '@/lib/context/CartContext';
 import { useState, useEffect, useRef } from 'react';
+import { getPlatformFees } from '@/lib/supabase/settings';
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, calculateTotals, clearCart } = useCart();
   const [couponCode, setCouponCode] = useState('');
   const [showCouponInput, setShowCouponInput] = useState(false);
   const [showScrollIndicator, setShowScrollIndicator] = useState(false);
+  const [totals, setTotals] = useState({
+    itemTotal: 0,
+    gst: 0,
+    platformFee: 0,
+    deliveryCharge: 0,
+    finalTotal: 0
+  });
+  const [taxRate, setTaxRate] = useState(5); // Default to 5% but will be updated from settings
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Get all totals
-  const { itemTotal, gst, platformFee, deliveryCharge, finalTotal } = calculateTotals();
+  // Calculate totals and tax rate whenever items change
+  useEffect(() => {
+    const loadTotalsAndTaxRate = async () => {
+      const [calculatedTotals, fees] = await Promise.all([
+        calculateTotals(),
+        getPlatformFees()
+      ]);
+      setTotals(calculatedTotals);
+      setTaxRate(Math.round(fees.gstRate * 100)); // Convert decimal to percentage
+    };
+    loadTotalsAndTaxRate();
+  }, [items, calculateTotals]);
+
+  // Destructure totals for easier access
+  const { itemTotal, gst, platformFee, deliveryCharge, finalTotal } = totals;
 
   // Check if scroll indicator should be shown
   useEffect(() => {
@@ -204,7 +226,7 @@ export default function CartPage() {
                 <span>₹{itemTotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">GST (5%)</span>
+                <span className="text-gray-600">GST ({taxRate}%)</span>
                 <span>₹{gst.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">

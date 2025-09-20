@@ -60,6 +60,36 @@
   animation: fadeIn 1.5s ease-in-out forwards;
 }
 
+/* Logo Animation - Fade Out (White to Transparent) */
+@keyframes logoFadeOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-logo-fade-out {
+  animation: logoFadeOut 3s ease-in-out forwards;
+}
+
+/* Logo Animation - Fade In (Transparent to Visible) */
+@keyframes logoFadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-logo-fade-in {
+  animation: logoFadeIn 3s ease-in-out forwards;
+}
+
 .delay-200 {
   animation-delay: 200ms;
 }

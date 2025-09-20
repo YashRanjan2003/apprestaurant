@@ -1,6 +1,6 @@
-# Restaurant Platform
+# GenZ Cafe
 
-A modern food ordering platform for restaurants with real-time order tracking and mobile-first design.
+A modern cafe ordering platform for the new generation with real-time order tracking and mobile-first design.
 
 ## Features
 

@@ -7,6 +7,7 @@ import { useSearchParams } from 'next/navigation';
 import FeedbackForm from '@/components/FeedbackForm';
 import { Toaster } from 'react-hot-toast';
 import { getStoredOrders } from '@/lib/utils/orders';
+import { getPlatformFees } from '@/lib/supabase/settings';
 
 interface OrderItem {
   id: string;
@@ -45,11 +46,24 @@ function TrackOrderContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recentOrders, setRecentOrders] = useState<ReturnType<typeof getStoredOrders>>([]);
+  const [taxRate, setTaxRate] = useState(5);
   const searchParams = useSearchParams();
 
-  // Load recent orders on mount
+  // Load recent orders and tax rate on mount
   useEffect(() => {
-    setRecentOrders(getStoredOrders());
+    const loadInitialData = async () => {
+      setRecentOrders(getStoredOrders());
+      
+      // Fetch tax rate
+      try {
+        const fees = await getPlatformFees();
+        setTaxRate(Math.round(fees.gstRate * 100));
+      } catch (error) {
+        console.error('Error fetching tax rate:', error);
+      }
+    };
+    
+    loadInitialData();
   }, []);
 
   // Auto-fetch order if OTP is provided in URL
@@ -67,6 +81,38 @@ function TrackOrderContent() {
         });
     }
   }, [searchParams]);
+
+  // Set up real-time subscription for order updates
+  useEffect(() => {
+    if (!order) return;
+
+    const subscription = supabase
+      .channel(`order-${order.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${order.id}`
+        },
+        (payload) => {
+          console.log('Order update received:', payload);
+          // Update the order status in real-time
+          if (payload.new) {
+            setOrder(prev => prev ? {
+              ...prev,
+              status: payload.new.status
+            } : null);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [order?.id]);
 
   const fetchOrderByOtp = async (otp: string) => {
     try {
@@ -334,7 +380,7 @@ function TrackOrderContent() {
                       <span>₹{order.itemTotal.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">GST (5%)</span>
+                      <span className="text-gray-600">GST ({taxRate}%)</span>
                       <span>₹{order.gst.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">

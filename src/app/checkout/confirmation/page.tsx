@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { storeOrder } from '@/lib/utils/orders';
+import { useState, useEffect } from 'react';
+import { getPlatformFees } from '@/lib/supabase/settings';
 
 interface OrderDetails {
   id: string;
@@ -32,24 +32,44 @@ interface OrderDetails {
   createdAt: string;
 }
 
-export default function ConfirmationPage() {
+// Helper function to store order details
+function storeOrder(orderData: any) {
+  const existingOrders = JSON.parse(localStorage.getItem('recentOrders') || '[]');
+  existingOrders.unshift(orderData);
+  localStorage.setItem('recentOrders', JSON.stringify(existingOrders.slice(0, 10)));
+}
+
+export default function CheckoutConfirmation() {
   const [order, setOrder] = useState<OrderDetails | null>(null);
+  const [taxRate, setTaxRate] = useState(5);
 
   useEffect(() => {
-    const orderData = localStorage.getItem('lastOrder');
-    if (orderData) {
-      const orderDetails = JSON.parse(orderData);
-      setOrder(orderDetails);
+    const loadOrderAndTaxRate = async () => {
+      const orderData = localStorage.getItem('lastOrder');
+      if (orderData) {
+        const orderDetails = JSON.parse(orderData);
+        setOrder(orderDetails);
+        
+        // Store in recent orders
+        storeOrder({
+          id: orderDetails.id,
+          otp: orderDetails.otp,
+          customer_name: orderDetails.customer.name,
+          status: orderDetails.status,
+          expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+        });
+      }
       
-      // Store in recent orders
-      storeOrder({
-        id: orderDetails.id,
-        otp: orderDetails.otp,
-        customer_name: orderDetails.customer.name,
-        status: orderDetails.status,
-        expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
-      });
-    }
+      // Fetch tax rate
+      try {
+        const fees = await getPlatformFees();
+        setTaxRate(Math.round(fees.gstRate * 100));
+      } catch (error) {
+        console.error('Error fetching tax rate:', error);
+      }
+    };
+    
+    loadOrderAndTaxRate();
   }, []);
 
   if (!order) {
@@ -72,7 +92,7 @@ export default function ConfirmationPage() {
   const orderCancelled = order.status === 'cancelled';
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-white shadow-sm">
+    <div className="max-w-md mx-auto min-h-screen bg-white shadow-sm flex flex-col">
       <header className="bg-white shadow-sm">
         <div className="max-w-md mx-auto px-4 py-4 flex items-center">
           <Link href="/menu" className="text-gray-800">
@@ -85,7 +105,7 @@ export default function ConfirmationPage() {
         </div>
       </header>
 
-      <main className="flex-1 p-4">
+      <main className="flex-1 p-4 pb-20 overflow-y-auto">
         <div className="mb-6 text-center">
           {orderCancelled ? (
             <>
@@ -206,7 +226,7 @@ export default function ConfirmationPage() {
                     <span>₹{order.itemTotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">GST (5%)</span>
+                    <span className="text-gray-600">GST ({taxRate}%)</span>
                     <span>₹{order.gst.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -227,18 +247,21 @@ export default function ConfirmationPage() {
               </div>
             </div>
 
-            {/* Track Order Button */}
-            <div className="mt-6">
-              <Link
-                href={`/track?otp=${order.otp}`}
-                className="block w-full bg-black text-white text-center py-3 rounded-lg font-medium hover:bg-gray-800 transition-colors"
-              >
-                Track Order
-              </Link>
-            </div>
           </>
         )}
       </main>
+      
+      {/* Fixed Track Order Button */}
+      {!orderCancelled && (
+        <div className="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md bg-white border-t border-gray-200 p-4">
+          <Link
+            href={`/track?otp=${order.otp}`}
+            className="block w-full bg-black text-white text-center py-3 rounded-lg font-medium hover:bg-gray-800 transition-colors"
+          >
+            Track Order
+          </Link>
+        </div>
+      )}
     </div>
   );
 } 

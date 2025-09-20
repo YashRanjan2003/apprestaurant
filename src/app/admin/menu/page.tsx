@@ -169,7 +169,10 @@ export default function MenuItemsPage() {
   
   // Handle item delete
   const handleDeleteItem = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this menu item? This cannot be undone.')) {
+    const item = menuItems.find(item => item.id === id);
+    const itemName = item ? item.name : 'this item';
+    
+    if (!window.confirm(`Are you sure you want to delete "${itemName}"? This cannot be undone.`)) {
       return;
     }
     

@@ -19,6 +19,9 @@ interface RestaurantSettings {
   delivery_fee: number | null;
   minimum_order_amount: number | null;
   tax_rate: number | null;
+  platform_fee: number | null;
+  platform_fee_enabled: boolean;
+  is_open: boolean;
   accept_credit_cards: boolean;
   accept_cash: boolean;
   offer_takeout: boolean;
@@ -31,6 +34,22 @@ interface RestaurantSettings {
   website_url: string | null;
 }
 
+interface DaySchedule {
+  isOpen: boolean;
+  openTime: string;
+  closeTime: string;
+}
+
+interface WeeklySchedule {
+  monday: DaySchedule;
+  tuesday: DaySchedule;
+  wednesday: DaySchedule;
+  thursday: DaySchedule;
+  friday: DaySchedule;
+  saturday: DaySchedule;
+  sunday: DaySchedule;
+}
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<RestaurantSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,6 +57,116 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'general' | 'payment' | 'delivery' | 'appearance' | 'social'>('general');
+  const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule>({
+    monday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
+    tuesday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
+    wednesday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
+    thursday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
+    friday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
+    saturday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
+    sunday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
+  });
+
+  // Helper function to convert 24h time to 12h format
+  const formatTime12h = (time24: string): string => {
+    const [hours, minutes] = time24.split(':');
+    const hour24 = parseInt(hours);
+    const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+    const period = hour24 >= 12 ? 'PM' : 'AM';
+    return `${hour12}:${minutes} ${period}`;
+  };
+
+  // Helper function to parse business hours string into weekly schedule
+  const parseBusinessHours = (hoursString: string | null): WeeklySchedule => {
+    if (!hoursString) {
+      return weeklySchedule; // Return default schedule
+    }
+    
+    // Simple format: "9:00 AM - 10:00 PM" (same for all days)
+    const simpleMatch = hoursString.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (simpleMatch) {
+      let openHour = parseInt(simpleMatch[1]);
+      const openMinute = simpleMatch[2];
+      const openPeriod = simpleMatch[3].toUpperCase();
+      
+      let closeHour = parseInt(simpleMatch[4]);
+      const closeMinute = simpleMatch[5];
+      const closePeriod = simpleMatch[6].toUpperCase();
+      
+      // Convert to 24h format
+      if (openPeriod === 'PM' && openHour !== 12) openHour += 12;
+      if (openPeriod === 'AM' && openHour === 12) openHour = 0;
+      if (closePeriod === 'PM' && closeHour !== 12) closeHour += 12;
+      if (closePeriod === 'AM' && closeHour === 12) closeHour = 0;
+      
+      const openTime = `${openHour.toString().padStart(2, '0')}:${openMinute}`;
+      const closeTime = `${closeHour.toString().padStart(2, '0')}:${closeMinute}`;
+      
+      const daySchedule: DaySchedule = { isOpen: true, openTime, closeTime };
+      
+      return {
+        monday: daySchedule,
+        tuesday: daySchedule,
+        wednesday: daySchedule,
+        thursday: daySchedule,
+        friday: daySchedule,
+        saturday: daySchedule,
+        sunday: daySchedule,
+      };
+    }
+    
+    // Return default if can't parse
+    return weeklySchedule;
+  };
+
+  // Helper function to convert weekly schedule to business hours string
+  const formatBusinessHours = (schedule: WeeklySchedule): string => {
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+    const openDays = days.filter(day => schedule[day].isOpen);
+    
+    if (openDays.length === 0) return 'Closed';
+    
+    // Check if all open days have the same hours
+    const firstOpenDay = schedule[openDays[0]];
+    const sameHours = openDays.every(day => 
+      schedule[day].openTime === firstOpenDay.openTime && 
+      schedule[day].closeTime === firstOpenDay.closeTime
+    );
+    
+    if (sameHours && openDays.length === 7) {
+      // All days same hours
+      return `${formatTime12h(firstOpenDay.openTime)} - ${formatTime12h(firstOpenDay.closeTime)}`;
+    } else if (sameHours) {
+      // Some days same hours
+      const dayNames = openDays.map(day => day.charAt(0).toUpperCase() + day.slice(1, 3));
+      return `${dayNames.join(', ')}: ${formatTime12h(firstOpenDay.openTime)} - ${formatTime12h(firstOpenDay.closeTime)}`;
+    } else {
+      // Different hours for different days - create a more detailed format
+      const groupedHours = new Map<string, string[]>();
+      
+      openDays.forEach(day => {
+        const timeString = `${formatTime12h(schedule[day].openTime)} - ${formatTime12h(schedule[day].closeTime)}`;
+        const dayName = day.charAt(0).toUpperCase() + day.slice(1, 3);
+        
+        if (groupedHours.has(timeString)) {
+          groupedHours.get(timeString)!.push(dayName);
+        } else {
+          groupedHours.set(timeString, [dayName]);
+        }
+      });
+      
+      // If we can group some days with same hours, show grouped format
+      if (groupedHours.size <= 2) {
+        const groups = Array.from(groupedHours.entries()).map(([hours, days]) => 
+          `${days.join(', ')}: ${hours}`
+        );
+        return groups.join('; ');
+      } else {
+        // Too many different hour combinations, show simplified format
+        return `${formatTime12h(firstOpenDay.openTime)} - ${formatTime12h(firstOpenDay.closeTime)} (varies by day)`;
+      }
+    }
+  };
 
   // Fetch settings
   useEffect(() => {
@@ -54,30 +183,37 @@ export default function SettingsPage() {
         }
         
         if (data) {
-          setSettings(data as RestaurantSettings);
+          const restaurantSettings = data as RestaurantSettings;
+          setSettings(restaurantSettings);
+          // Parse business hours into weekly schedule
+          const parsedSchedule = parseBusinessHours(restaurantSettings.business_hours);
+          setWeeklySchedule(parsedSchedule);
         } else {
           // Create default settings if none exist
           const defaultSettings: Omit<RestaurantSettings, 'id'> = {
-            name: 'My Restaurant',
-            description: 'Delicious food delivered to your doorstep',
+            name: 'GenZ Cafe',
+            description: 'Modern cafe ordering platform for the new generation',
             logo_url: null,
-            phone: '',
-            email: '',
-            address: '',
-            city: '',
-            state: '',
-            zip_code: '',
-            country: '',
-            business_hours: '',
-            delivery_fee: 5,
-            minimum_order_amount: 15,
-            tax_rate: 10,
+            phone: '+91 9876543210',
+            email: 'contact@genzcafe.com',
+            address: '123 Tech Street',
+            city: 'Bangalore',
+            state: 'Karnataka',
+            zip_code: '560001',
+            country: 'India',
+            business_hours: '11:00 AM - 10:00 PM',
+            delivery_fee: 40,
+            minimum_order_amount: 100,
+            tax_rate: 5,
+            platform_fee: 15,
+            platform_fee_enabled: true,
+            is_open: true,
             accept_credit_cards: true,
             accept_cash: true,
             offer_takeout: true,
-            offer_delivery: true,
+            offer_delivery: false,
             delivery_radius_km: 10,
-            currency: 'USD',
+            currency: 'INR',
             instagram_handle: '',
             facebook_handle: '',
             twitter_handle: '',
@@ -107,6 +243,70 @@ export default function SettingsPage() {
     fetchSettings();
   }, []);
   
+  // Handle weekly schedule changes
+  const handleDayToggle = (day: keyof WeeklySchedule) => {
+    const newSchedule = {
+      ...weeklySchedule,
+      [day]: {
+        ...weeklySchedule[day],
+        isOpen: !weeklySchedule[day].isOpen
+      }
+    };
+    setWeeklySchedule(newSchedule);
+    updateBusinessHoursString(newSchedule);
+  };
+
+  const handleTimeChange = (day: keyof WeeklySchedule, timeType: 'openTime' | 'closeTime', value: string) => {
+    const newSchedule = {
+      ...weeklySchedule,
+      [day]: {
+        ...weeklySchedule[day],
+        [timeType]: value
+      }
+    };
+    setWeeklySchedule(newSchedule);
+    updateBusinessHoursString(newSchedule);
+  };
+
+  const updateBusinessHoursString = (newSchedule?: WeeklySchedule) => {
+    if (!settings) return;
+    const scheduleToUse = newSchedule || weeklySchedule;
+    const businessHoursString = formatBusinessHours(scheduleToUse);
+    setSettings({
+      ...settings,
+      business_hours: businessHoursString
+    });
+    
+    // Auto-save the updated hours to database
+    saveBusinessHours(businessHoursString);
+  };
+
+  const saveBusinessHours = async (businessHours: string) => {
+    try {
+      const { error } = await supabase
+        .from('restaurant_settings')
+        .update({ business_hours: businessHours })
+        .eq('id', settings?.id);
+        
+      if (error) {
+        console.error('Error saving business hours:', error);
+      }
+    } catch (err) {
+      console.error('Error auto-saving business hours:', err);
+    }
+  };
+
+  const applyToAllDays = (sourceDay: keyof WeeklySchedule) => {
+    const sourceSchedule = weeklySchedule[sourceDay];
+    const newSchedule = Object.keys(weeklySchedule).reduce((acc, day) => {
+      acc[day as keyof WeeklySchedule] = { ...sourceSchedule };
+      return acc;
+    }, {} as WeeklySchedule);
+    
+    setWeeklySchedule(newSchedule);
+    updateBusinessHoursString(newSchedule);
+  };
+
   // Handle input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -258,6 +458,35 @@ export default function SettingsPage() {
           {/* General Information Tab */}
           {activeTab === 'general' && (
             <div className="space-y-6">
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Restaurant Status</h3>
+                    <p className="text-sm text-gray-600">Manually open or close your restaurant</p>
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="is_open"
+                      name="is_open"
+                      checked={settings.is_open || false}
+                      onChange={handleChange}
+                      className="h-6 w-6 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="is_open" className="ml-3 text-sm font-medium text-gray-700">
+                      {settings.is_open ? 'Restaurant is Open' : 'Restaurant is Closed'}
+                    </label>
+                  </div>
+                </div>
+                {!settings.is_open && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-sm text-red-700">
+                      ⚠️ Restaurant is manually closed. Customers will see a "closed" message and cannot place orders.
+                    </p>
+                  </div>
+                )}
+              </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
@@ -341,18 +570,75 @@ export default function SettingsPage() {
               </div>
               
               <div>
-                <label htmlFor="business_hours" className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
                   Business Hours
                 </label>
-                <input
-                  type="text"
-                  id="business_hours"
-                  name="business_hours"
-                  value={settings.business_hours || ''}
-                  onChange={handleChange}
-                  placeholder="e.g. Mon-Fri: 9AM-10PM, Sat-Sun: 10AM-11PM"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                />
+                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium text-gray-800">Weekly Schedule</h4>
+                    <p className="text-xs text-gray-600">
+                      Current: {settings.business_hours || 'Not set'}
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {Object.entries(weeklySchedule).map(([day, schedule]) => (
+                      <div key={day} className="flex items-center space-x-4 py-2">
+                        <div className="w-20">
+                          <span className="text-sm font-medium capitalize text-gray-700">
+                            {day.slice(0, 3)}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={schedule.isOpen}
+                            onChange={() => handleDayToggle(day as keyof WeeklySchedule)}
+                            className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
+                          />
+                          <span className="ml-2 text-sm text-gray-600">
+                            {schedule.isOpen ? 'Open' : 'Closed'}
+                          </span>
+                        </div>
+                        
+                        {schedule.isOpen && (
+                          <>
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="time"
+                                value={schedule.openTime}
+                                onChange={(e) => handleTimeChange(day as keyof WeeklySchedule, 'openTime', e.target.value)}
+                                className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-black focus:border-black"
+                              />
+                              <span className="text-sm text-gray-500">to</span>
+                              <input
+                                type="time"
+                                value={schedule.closeTime}
+                                onChange={(e) => handleTimeChange(day as keyof WeeklySchedule, 'closeTime', e.target.value)}
+                                className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-black focus:border-black"
+                              />
+                            </div>
+                            
+                            <button
+                              type="button"
+                              onClick={() => applyToAllDays(day as keyof WeeklySchedule)}
+                              className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                            >
+                              Copy to all
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="pt-2 border-t border-gray-200">
+                    <p className="text-xs text-gray-500">
+                      💡 Tip: Set hours for one day and click "Copy to all" to apply the same hours to all days.
+                    </p>
+                  </div>
+                </div>
               </div>
               
               <div>
@@ -445,42 +731,73 @@ export default function SettingsPage() {
                     onChange={handleChange}
                     step="0.01"
                     min="0"
+                    max="100"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
                   />
+                  <p className="mt-1 text-xs text-gray-500">GST/Tax percentage applied to orders</p>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Payment Methods
+                  <label htmlFor="platform_fee" className="block text-sm font-medium text-gray-700 mb-1">
+                    Platform Fee ({settings.currency})
                   </label>
-                  <div className="space-y-3">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="accept_credit_cards"
-                        name="accept_credit_cards"
-                        checked={settings.accept_credit_cards}
-                        onChange={handleChange}
-                        className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
-                      />
-                      <label htmlFor="accept_credit_cards" className="ml-2 text-sm text-gray-700">
-                        Accept Credit Cards
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="accept_cash"
-                        name="accept_cash"
-                        checked={settings.accept_cash}
-                        onChange={handleChange}
-                        className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
-                      />
-                      <label htmlFor="accept_cash" className="ml-2 text-sm text-gray-700">
-                        Accept Cash on Delivery
-                      </label>
-                    </div>
+                  <input
+                    type="number"
+                    id="platform_fee"
+                    name="platform_fee"
+                    value={settings.platform_fee === null ? '' : settings.platform_fee}
+                    onChange={handleChange}
+                    step="0.01"
+                    min="0"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                  <div className="mt-2 flex items-center">
+                    <input
+                      type="checkbox"
+                      id="platform_fee_enabled"
+                      name="platform_fee_enabled"
+                      checked={settings.platform_fee_enabled || false}
+                      onChange={handleChange}
+                      className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
+                    />
+                    <label htmlFor="platform_fee_enabled" className="ml-2 text-sm text-gray-700">
+                      Enable Platform Fee
+                    </label>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Payment Methods
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="accept_credit_cards"
+                      name="accept_credit_cards"
+                      checked={settings.accept_credit_cards || false}
+                      onChange={handleChange}
+                      className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
+                    />
+                    <label htmlFor="accept_credit_cards" className="ml-2 text-sm text-gray-700">
+                      Accept Credit/Debit Cards
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="accept_cash"
+                      name="accept_cash"
+                      checked={settings.accept_cash || false}
+                      onChange={handleChange}
+                      className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
+                    />
+                    <label htmlFor="accept_cash" className="ml-2 text-sm text-gray-700">
+                      Accept Cash on Pickup/Delivery
+                    </label>
                   </div>
                 </div>
               </div>
@@ -508,7 +825,7 @@ export default function SettingsPage() {
                         type="checkbox"
                         id="offer_delivery"
                         name="offer_delivery"
-                        checked={settings.offer_delivery}
+                        checked={settings.offer_delivery || false}
                         onChange={handleChange}
                         className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
                       />
@@ -522,7 +839,7 @@ export default function SettingsPage() {
                         type="checkbox"
                         id="offer_takeout"
                         name="offer_takeout"
-                        checked={settings.offer_takeout}
+                        checked={settings.offer_takeout || false}
                         onChange={handleChange}
                         className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
                       />

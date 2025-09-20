@@ -355,9 +355,9 @@ export default function MenuPage() {
 
       {/* Item details modal */}
       {isModalOpen && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
           <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setIsModalOpen(false)}></div>
-          <div className="bg-white w-full max-h-[90vh] overflow-auto z-10 relative rounded-t-xl m-4">
+          <div className="bg-white w-full max-h-[90vh] overflow-auto z-10 relative rounded-t-xl">
             <div className="relative">
               <div className="h-64 relative">
                 <Image
@@ -432,15 +432,36 @@ export default function MenuPage() {
                 <p className="text-gray-700 text-base">{selectedItem.description}</p>
               </div>
               
-              <button
-                onClick={() => {
-                  handleAddToCart(selectedItem);
-                  setIsModalOpen(false);
-                }}
-                className="mt-6 w-full py-3 bg-black text-white font-medium rounded-lg"
-              >
-                ADD
-              </button>
+              {quantities[selectedItem.id] ? (
+                <div className="mt-6 flex items-center justify-center">
+                  <div className="flex items-center border-2 border-black rounded-lg overflow-hidden">
+                    <button 
+                      className="w-12 h-12 flex items-center justify-center text-black bg-white hover:bg-gray-50 font-bold text-xl transition-colors"
+                      onClick={() => handleQuantityChange(selectedItem.id, quantities[selectedItem.id] - 1)}
+                    >
+                      -
+                    </button>
+                    <div className="w-16 h-12 flex items-center justify-center text-xl font-bold bg-white border-l border-r border-black">
+                      {quantities[selectedItem.id]}
+                    </div>
+                    <button 
+                      className="w-12 h-12 flex items-center justify-center text-white bg-black hover:bg-gray-800 font-bold text-xl transition-colors"
+                      onClick={() => handleQuantityChange(selectedItem.id, quantities[selectedItem.id] + 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    handleAddToCart(selectedItem);
+                  }}
+                  className="mt-6 w-full py-3 bg-black text-white font-medium rounded-lg"
+                >
+                  ADD
+                </button>
+              )}
             </div>
           </div>
         </div>

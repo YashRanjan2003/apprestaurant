@@ -1,7 +1,7 @@
 {
-  "name": "Restaurant App",
-  "short_name": "Restaurant",
-  "description": "Mobile restaurant ordering and reservation platform",
+  "name": "GenZ Cafe",
+  "short_name": "GenZ Cafe",
+  "description": "Modern cafe ordering platform for the new generation",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
