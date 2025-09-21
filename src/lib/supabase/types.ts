@@ -129,6 +129,9 @@ export interface Database {
           final_total: number
           status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled'
           otp: string
+          coupon_id: string | null
+          coupon_code: string | null
+          discount_amount: number
           created_at: string
           updated_at: string
         }
@@ -146,6 +149,9 @@ export interface Database {
           final_total: number
           status?: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled'
           otp: string
+          coupon_id?: string | null
+          coupon_code?: string | null
+          discount_amount?: number
           created_at?: string
           updated_at?: string
         }
@@ -163,6 +169,9 @@ export interface Database {
           final_total?: number
           status?: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled'
           otp?: string
+          coupon_id?: string | null
+          coupon_code?: string | null
+          discount_amount?: number
           created_at?: string
           updated_at?: string
         }
@@ -197,6 +206,91 @@ export interface Database {
           quantity?: number
           created_at?: string
           updated_at?: string
+        }
+      }
+      coupons: {
+        Row: {
+          id: string
+          code: string
+          name: string
+          description: string | null
+          discount_type: 'percentage' | 'fixed'
+          discount_value: number
+          minimum_order_amount: number
+          maximum_discount_amount: number | null
+          usage_limit: number | null
+          used_count: number
+          per_user_limit: number
+          start_date: string
+          end_date: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          code: string
+          name: string
+          description?: string | null
+          discount_type: 'percentage' | 'fixed'
+          discount_value: number
+          minimum_order_amount?: number
+          maximum_discount_amount?: number | null
+          usage_limit?: number | null
+          used_count?: number
+          per_user_limit?: number
+          start_date: string
+          end_date: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          code?: string
+          name?: string
+          description?: string | null
+          discount_type?: 'percentage' | 'fixed'
+          discount_value?: number
+          minimum_order_amount?: number
+          maximum_discount_amount?: number | null
+          usage_limit?: number | null
+          used_count?: number
+          per_user_limit?: number
+          start_date?: string
+          end_date?: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+      }
+      coupon_usage: {
+        Row: {
+          id: string
+          coupon_id: string
+          user_id: string | null
+          order_id: string | null
+          discount_amount: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          coupon_id: string
+          user_id?: string | null
+          order_id?: string | null
+          discount_amount: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          coupon_id?: string
+          user_id?: string | null
+          order_id?: string | null
+          discount_amount?: number
+          created_at?: string
         }
       }
       settings: {

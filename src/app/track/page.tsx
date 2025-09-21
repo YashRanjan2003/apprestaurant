@@ -25,6 +25,7 @@ interface OrderDetails {
   gst: number;
   platformFee: number;
   deliveryCharge: number;
+  discountAmount: number;
   finalTotal: number;
   orderType: 'pickup';
   deliveryAddress: null;
@@ -36,6 +37,7 @@ interface OrderDetails {
   customer_name: string;
   customer_phone: string;
   customer_email: string | null;
+  couponCode: string | null;
   expiresAt: string;
 }
 
@@ -136,6 +138,7 @@ function TrackOrderContent() {
         gst: data.gst,
         platformFee: data.platform_fee,
         deliveryCharge: data.delivery_charge,
+        discountAmount: data.discount_amount || 0,
         finalTotal: data.final_total,
         orderType: data.order_type,
         deliveryAddress: data.delivery_address,
@@ -147,6 +150,7 @@ function TrackOrderContent() {
         customer_name: data.customer_name,
         customer_phone: data.customer_phone,
         customer_email: data.customer_email,
+        couponCode: data.coupon_code,
         expiresAt: data.expires_at
       };
       
@@ -387,6 +391,12 @@ function TrackOrderContent() {
                       <span className="text-gray-600">Platform Fee</span>
                       <span>₹{order.platformFee.toFixed(2)}</span>
                     </div>
+                    {order.discountAmount > 0 && (
+                      <div className="flex justify-between text-sm text-green-600">
+                        <span>Discount {order.couponCode ? `(${order.couponCode})` : ''}</span>
+                        <span>-₹{order.discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between font-semibold pt-2 border-t mt-2">
                       <span>Total</span>
                       <span>₹{order.finalTotal.toFixed(2)}</span>

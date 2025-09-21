@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { getPlatformFees } from '@/lib/supabase/settings';
+import { validateCoupon, type CouponValidationResult } from '@/lib/supabase/coupons';
 
 interface CartItem {
   id: string;
@@ -10,11 +11,22 @@ interface CartItem {
   quantity: number;
 }
 
+interface AppliedCoupon {
+  couponId: string;
+  code: string;
+  name: string;
+  description?: string;
+  discountAmount: number;
+  discountType: 'percentage' | 'fixed';
+  discountValue: number;
+}
+
 interface CartTotals {
   itemTotal: number;
   gst: number;
   platformFee: number;
   deliveryCharge: number;
+  discountAmount: number;
   finalTotal: number;
 }
 
@@ -26,21 +38,37 @@ interface CartContextType {
   clearCart: () => void;
   itemCount: number;
   calculateTotals: () => Promise<CartTotals>;
+  appliedCoupon: AppliedCoupon | null;
+  applyCoupon: (code: string, userId?: string | null) => Promise<CouponValidationResult>;
+  removeCoupon: () => void;
+  couponLoading: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
 
   // Load cart from localStorage on mount
   useEffect(() => {
     const savedCart = localStorage.getItem('cart');
+    const savedCoupon = localStorage.getItem('appliedCoupon');
+    
     if (savedCart) {
       try {
         setItems(JSON.parse(savedCart));
       } catch (error) {
         console.error('Failed to parse cart from localStorage:', error);
+      }
+    }
+    
+    if (savedCoupon) {
+      try {
+        setAppliedCoupon(JSON.parse(savedCoupon));
+      } catch (error) {
+        console.error('Failed to parse coupon from localStorage:', error);
       }
     }
   }, []);
@@ -49,6 +77,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(items));
   }, [items]);
+  
+  // Save coupon to localStorage whenever it changes
+  useEffect(() => {
+    if (appliedCoupon) {
+      localStorage.setItem('appliedCoupon', JSON.stringify(appliedCoupon));
+    } else {
+      localStorage.removeItem('appliedCoupon');
+    }
+  }, [appliedCoupon]);
 
   const addItem = (newItem: Omit<CartItem, 'quantity'>) => {
     setItems(currentItems => {
@@ -82,6 +119,41 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = () => {
     setItems([]);
+    setAppliedCoupon(null);
+  };
+  
+  const applyCoupon = async (code: string, userId?: string | null): Promise<CouponValidationResult> => {
+    setCouponLoading(true);
+    try {
+      const itemTotal = items.reduce((total, item) => total + (item.price * item.quantity), 0);
+      const result = await validateCoupon(code, userId || null, itemTotal);
+      
+      if (result.valid) {
+        setAppliedCoupon({
+          couponId: result.coupon_id!,
+          code: code.toUpperCase(),
+          name: result.name!,
+          description: result.description,
+          discountAmount: result.discount_amount!,
+          discountType: result.discount_type!,
+          discountValue: result.discount_value!
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Error applying coupon:', error);
+      return {
+        valid: false,
+        error: 'Failed to apply coupon. Please try again.'
+      };
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+  
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
   };
 
   const calculateTotals = async (): Promise<CartTotals> => {
@@ -107,13 +179,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       // No delivery charge as we only offer pickup
       const deliveryCharge = 0;
       
+      // Apply coupon discount
+      const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0;
+      
       // Calculate final total
-      const finalTotal = itemTotal + gst + platformFee + deliveryCharge;
+      const finalTotal = Math.max(0, itemTotal + gst + platformFee + deliveryCharge - discountAmount);
       
       console.log('Calculated totals:', {
         itemTotal,
         gst,
         platformFee,
+        discountAmount,
         finalTotal
       });
       
@@ -122,6 +198,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         gst,
         platformFee,
         deliveryCharge,
+        discountAmount,
         finalTotal
       };
     } catch (error) {
@@ -130,12 +207,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const gst = itemTotal * 0.05;
       const platformFee = 15.00;
       const deliveryCharge = 0;
-      const finalTotal = itemTotal + gst + platformFee + deliveryCharge;
+      const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0;
+      const finalTotal = Math.max(0, itemTotal + gst + platformFee + deliveryCharge - discountAmount);
       
       console.log('Using fallback totals:', {
         itemTotal,
         gst,
         platformFee,
+        discountAmount,
         finalTotal
       });
       
@@ -144,6 +223,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         gst,
         platformFee,
         deliveryCharge,
+        discountAmount,
         finalTotal
       };
     }
@@ -164,6 +244,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         clearCart,
         itemCount,
         calculateTotals,
+        appliedCoupon,
+        applyCoupon,
+        removeCoupon,
+        couponLoading,
       }}
     >
       {children}

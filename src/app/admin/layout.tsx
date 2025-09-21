@@ -159,6 +159,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </li>
             <li>
               <Link 
+                href="/admin/coupons" 
+                className={`block px-4 py-2 hover:bg-gray-700 ${pathname?.startsWith('/admin/coupons') ? 'bg-gray-700' : ''}`}
+              >
+                Coupons
+              </Link>
+            </li>
+            <li>
+              <Link 
                 href="/admin/settings" 
                 className={`block px-4 py-2 hover:bg-gray-700 ${pathname?.startsWith('/admin/settings') ? 'bg-gray-700' : ''}`}
               >
@@ -187,6 +195,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               {pathname === '/admin/menu' && 'Menu Management'}
               {pathname === '/admin/categories' && 'Categories Management'}
               {pathname === '/admin/users' && 'User Management'}
+              {pathname?.startsWith('/admin/coupons') && 'Coupon Management'}
               {pathname?.startsWith('/admin/settings') && 'Restaurant Settings'}
             </h1>
           </div>

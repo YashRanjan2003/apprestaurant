@@ -1,5 +1,6 @@
 import { supabase } from './client';
 import { generateOTP } from '@/lib/utils/helpers';
+import { recordCouponUsage } from './coupons';
 
 // Order types
 export interface OrderItem {
@@ -22,6 +23,9 @@ export interface OrderData {
   platform_fee: number;
   delivery_charge: number;
   final_total: number;
+  coupon_id?: string | null;
+  coupon_code?: string | null;
+  discount_amount?: number;
   order_items: OrderItem[];
   customer_name?: string;
   customer_phone?: string;
@@ -55,6 +59,9 @@ export async function createOrder(orderData: OrderData) {
         platform_fee: orderData.platform_fee,
         delivery_charge: 0,  // Always 0 since we only support pickup
         final_total: orderData.final_total,
+        coupon_id: orderData.coupon_id,
+        coupon_code: orderData.coupon_code,
+        discount_amount: orderData.discount_amount || 0,
         customer_name: orderData.customer_name,
         customer_phone: orderData.customer_phone,
         customer_email: orderData.customer_email,
@@ -82,6 +89,21 @@ export async function createOrder(orderData: OrderData) {
       .insert(orderItems);
 
     if (itemsError) throw itemsError;
+    
+    // Record coupon usage if a coupon was applied
+    if (orderData.coupon_id && orderData.discount_amount && orderData.discount_amount > 0) {
+      try {
+        await recordCouponUsage(
+          orderData.coupon_id,
+          orderData.user_id,
+          order.id,
+          orderData.discount_amount
+        );
+      } catch (couponError) {
+        console.error('Error recording coupon usage:', couponError);
+        // Don't fail the order creation if coupon recording fails
+      }
+    }
     
     return { orderId: order.id, otp };
   } catch (error) {

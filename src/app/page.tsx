@@ -41,38 +41,38 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <div className="fixed inset-0 w-full max-w-md mx-auto bg-gray-900 flex items-center justify-center">
+      <div className="fixed inset-0 w-full max-w-md mx-auto bg-white flex items-center justify-center">
         <div className="flex flex-col items-center space-y-3">
           <div className="relative">
-            <div className="w-12 h-12 border-3 border-gray-700 rounded-full animate-spin">
+            <div className="w-12 h-12 border-3 border-gray-200 rounded-full animate-spin">
               <div className="absolute top-0 left-0 w-12 h-12 border-3 border-transparent border-t-yellow-500 rounded-full animate-spin" />
             </div>
           </div>
-          <p className="text-yellow-400 text-sm font-medium">Loading...</p>
+          <p className="text-yellow-600 text-sm font-medium">Loading...</p>
         </div>
       </div>
     );
   }
   return (
-    <div className="fixed inset-0 w-full max-w-md mx-auto bg-gray-900 overflow-hidden">
+    <div className="fixed inset-0 w-full max-w-md mx-auto bg-white overflow-hidden">
       {/* GenZ Background Image */}
       <div className="absolute inset-0">
         <Image
           src="/assets/images/genZ background.png"
           alt="GenZ Cafe Background"
           fill
-          className="object-cover"
+          className="object-cover opacity-30"
           priority
           quality={100}
         />
         
-        {/* Dark overlay for better text contrast */}
-        <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-black/50 to-black/70" />
+        {/* Light overlay for brightness */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-white/30 to-white/20" />
         
         {/* Subtle geometric accents over the background */}
-        <div className="absolute top-16 right-6 w-24 h-24 bg-yellow-500/10 rounded-full blur-2xl" />
-        <div className="absolute bottom-24 left-8 w-20 h-20 bg-yellow-400/10 rounded-full blur-xl" />
-        <div className="absolute top-1/3 left-4 w-16 h-16 bg-yellow-600/10 rounded-full blur-lg" />
+        <div className="absolute top-16 right-6 w-24 h-24 bg-yellow-500/20 rounded-full blur-2xl" />
+        <div className="absolute bottom-24 left-8 w-20 h-20 bg-yellow-400/15 rounded-full blur-xl" />
+        <div className="absolute top-1/3 left-4 w-16 h-16 bg-yellow-600/20 rounded-full blur-lg" />
       </div>
 
       {/* Main Content */}
@@ -81,9 +81,9 @@ export default function Home() {
         <div className="pt-16">
           {/* Status Badge */}
           <div className="flex justify-center mb-12">
-            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800/80 backdrop-blur-sm rounded-full border border-gray-700/50">
+            <div className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-yellow-200/50 shadow-sm">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-xs font-semibold text-yellow-400 tracking-wide uppercase">Open Now</span>
+              <span className="text-xs font-semibold text-yellow-600 tracking-wide uppercase">Open Now</span>
             </div>
           </div>
 
@@ -91,15 +91,15 @@ export default function Home() {
           <div className="text-center mb-12">
             {/* Logo Container */}
             <div className="relative w-56 h-56 mx-auto mb-8 group">
-              <div className="absolute inset-0 bg-gray-800/50 backdrop-blur-sm rounded-3xl border border-gray-700/50 group-hover:bg-gray-800/70 group-hover:border-yellow-500/20 transition-all duration-300" />
+              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded-3xl border border-yellow-200/30 shadow-lg group-hover:bg-white/90 group-hover:border-yellow-400/40 transition-all duration-300" />
               <div className="relative w-full h-full p-10">
-                {/* White Logo Shadow (positioned slightly offset) */}
+                {/* Logo Shadow (positioned slightly offset) */}
                 <div className="absolute inset-0 p-10 translate-x-px translate-y-px">
                   <Image
                     src="/assets/images/GENZ CAFE LOGO.png"
                     alt="GenZ Cafe Logo Shadow"
                     fill
-                    className="object-contain brightness-0 invert opacity-50 group-hover:scale-105 transition-all duration-300"
+                    className="object-contain opacity-20 group-hover:scale-105 transition-all duration-300"
                     priority
                     sizes="14rem"
                     quality={100}
@@ -123,9 +123,9 @@ export default function Home() {
             
             {/* Clean Typography */}
             <div className="space-y-4">
-              <h1 className="text-3xl font-bold text-white leading-tight">
+              <h1 className="text-3xl font-bold text-gray-800 leading-tight">
                 Cafe for the
-                <span className="block text-4xl bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
+                <span className="block text-4xl bg-gradient-to-r from-yellow-500 to-yellow-700 bg-clip-text text-transparent">
                   New Generation
                 </span>
               </h1>
@@ -137,11 +137,11 @@ export default function Home() {
         <div className="space-y-8">
           {/* Hours Display */}
           <div className="text-center">
-            <div className="inline-flex items-center gap-3 px-5 py-3 bg-gray-800/60 backdrop-blur-sm rounded-full border border-gray-700/50">
-              <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="inline-flex items-center gap-3 px-5 py-3 bg-white/70 backdrop-blur-sm rounded-full border border-yellow-200/50 shadow-sm">
+              <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className="text-sm font-medium text-gray-300">{restaurantInfo.openingHours}</span>
+              <span className="text-sm font-medium text-gray-700">{restaurantInfo.openingHours}</span>
             </div>
           </div>
           
@@ -149,7 +149,7 @@ export default function Home() {
           <div className="flex justify-center">
             <Link 
               href="/track" 
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-800/40 backdrop-blur-sm rounded-full border border-gray-700/50 text-sm text-gray-300 hover:text-yellow-400 hover:border-yellow-500/30 transition-all duration-300 group"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/60 backdrop-blur-sm rounded-full border border-yellow-200/50 shadow-sm text-sm text-gray-600 hover:text-yellow-600 hover:border-yellow-400/50 hover:bg-white/80 transition-all duration-300 group"
             >
               <svg className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -173,16 +173,16 @@ export default function Home() {
             </Link>
           </div>
           
-          {/* Bottom branding - Dark theme */}
+          {/* Bottom branding - Light theme */}
           <div className="text-center space-y-3 pb-2">
-            <div className="flex items-center justify-center opacity-50">
-              <span className="text-xs text-gray-400 mr-2 font-light">powered by</span>
+            <div className="flex items-center justify-center opacity-60">
+              <span className="text-xs text-gray-500 mr-2 font-light">powered by</span>
               <Image
                 src="/assets/images/srmhotel.png"
                 alt="SRM Hotel Logo"
                 width={60}
                 height={18}
-                className="object-contain opacity-70 brightness-75"
+                className="object-contain opacity-80"
               />
             </div>
           </div>

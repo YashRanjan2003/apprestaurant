@@ -16,6 +16,7 @@ interface OrderDetails {
   gst: number;
   platformFee: number;
   deliveryCharge: number;
+  discountAmount: number;
   finalTotal: number;
   orderType: 'pickup';
   deliveryAddress: null;
@@ -23,6 +24,8 @@ interface OrderDetails {
   paymentMethod: 'card' | 'cash';
   paymentId?: string;
   otp: string;
+  couponCode?: string;
+  couponName?: string;
   customer: {
     name: string;
     phone: string;
@@ -237,6 +240,12 @@ export default function CheckoutConfirmation() {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Delivery Charge</span>
                       <span>₹{order.deliveryCharge.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {order.discountAmount > 0 && (
+                    <div className="flex justify-between text-sm text-green-600">
+                      <span>Discount {order.couponCode ? `(${order.couponCode})` : ''}</span>
+                      <span>-₹{order.discountAmount.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-semibold pt-2 border-t">

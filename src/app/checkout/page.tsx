@@ -10,7 +10,7 @@ import { getPlatformFees, getRestaurantSettings, isRestaurantOpen } from '@/lib/
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, clearCart, calculateTotals } = useCart();
+  const { items, clearCart, calculateTotals, appliedCoupon, applyCoupon, removeCoupon, couponLoading } = useCart();
   const [isProcessing, setIsProcessing] = useState(false);
   const [scheduledTime, setScheduledTime] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('card');
@@ -20,6 +20,7 @@ export default function CheckoutPage() {
     gst: 0,
     platformFee: 0,
     deliveryCharge: 0,
+    discountAmount: 0,
     finalTotal: 0
   });
   const [taxRate, setTaxRate] = useState(5); // Default to 5% but will be updated from settings
@@ -53,7 +54,7 @@ export default function CheckoutPage() {
       }
     };
     loadSettingsAndTotals();
-  }, [items, calculateTotals]);
+  }, [items, calculateTotals, appliedCoupon]);
 
   const finalAmount = totals.finalTotal - totals.deliveryCharge;
   
@@ -145,6 +146,9 @@ export default function CheckoutPage() {
         platform_fee: totals.platformFee,
         delivery_charge: 0, // No delivery charge since only pickup is available
         final_total: finalAmount,
+        coupon_id: appliedCoupon?.couponId || null,
+        coupon_code: appliedCoupon?.code || null,
+        discount_amount: totals.discountAmount,
         order_items: orderItems,
         customer_name: customerName,
         customer_phone: customerPhone,
@@ -162,12 +166,15 @@ export default function CheckoutPage() {
         gst: totals.gst,
         platformFee: totals.platformFee,
         deliveryCharge: 0,
+        discountAmount: totals.discountAmount,
         finalTotal: finalAmount,
         orderType: 'pickup',
         deliveryAddress: null,
         scheduledTime: scheduledTime || 'ASAP',
         paymentMethod,
         otp,
+        couponCode: appliedCoupon?.code,
+        couponName: appliedCoupon?.name,
         customer: {
           name: customerName,
           phone: customerPhone,
@@ -324,6 +331,16 @@ export default function CheckoutPage() {
             </div>
           </div>
 
+          {/* Coupon Section */}
+          <CouponInput
+            appliedCoupon={appliedCoupon}
+            applyCoupon={applyCoupon}
+            removeCoupon={removeCoupon}
+            couponLoading={couponLoading}
+            customerName={customerName}
+            customerPhone={customerPhone}
+          />
+
           {/* Pickup Information Section */}
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <h2 className="font-semibold mb-3">Pickup Information</h2>
@@ -440,6 +457,12 @@ export default function CheckoutPage() {
                   <span className="text-gray-600">Platform Fee</span>
                   <span>₹{totals.platformFee.toFixed(2)}</span>
                 </div>
+                {totals.discountAmount > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>Discount ({appliedCoupon?.code})</span>
+                    <span>-₹{totals.discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="border-t pt-3 mt-3">
@@ -472,4 +495,141 @@ export default function CheckoutPage() {
       </main>
     </div>
   );
-} 
+}
+
+// Coupon Input Component
+function CouponInput({
+  appliedCoupon,
+  applyCoupon,
+  removeCoupon,
+  couponLoading,
+  customerName,
+  customerPhone
+}: {
+  appliedCoupon: any;
+  applyCoupon: (code: string, userId?: string | null) => Promise<any>;
+  removeCoupon: () => void;
+  couponLoading: boolean;
+  customerName: string;
+  customerPhone: string;
+}) {
+  const [couponCode, setCouponCode] = useState('');
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [showInput, setShowInput] = useState(false);
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) {
+      setCouponError('Please enter a coupon code');
+      return;
+    }
+
+    setCouponError(null);
+    
+    // Create a temporary user ID from phone number for validation
+    const tempUserId = customerPhone ? `guest_${customerPhone}` : null;
+    
+    try {
+      const result = await applyCoupon(couponCode.trim(), tempUserId);
+      
+      if (result.valid) {
+        setCouponCode('');
+        setShowInput(false);
+      } else {
+        setCouponError(result.error || 'Invalid coupon code');
+      }
+    } catch (error) {
+      setCouponError('Failed to apply coupon. Please try again.');
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    removeCoupon();
+    setCouponCode('');
+    setCouponError(null);
+    setShowInput(false);
+  };
+
+  return (
+    <div className="bg-white rounded-lg p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold">Promo Code</h2>
+        {appliedCoupon ? (
+          <button
+            type="button"
+            onClick={handleRemoveCoupon}
+            className="text-red-600 text-sm font-medium hover:text-red-700"
+          >
+            Remove
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowInput(!showInput)}
+            className="text-yellow-600 text-sm font-medium hover:text-yellow-700"
+          >
+            {showInput ? 'Cancel' : 'Add Code'}
+          </button>
+        )}
+      </div>
+
+      {appliedCoupon ? (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-green-800">{appliedCoupon.code}</p>
+              <p className="text-sm text-green-600">{appliedCoupon.name}</p>
+              {appliedCoupon.description && (
+                <p className="text-xs text-green-500 mt-1">{appliedCoupon.description}</p>
+              )}
+            </div>
+            <div className="text-right">
+              <p className="font-medium text-green-800">
+                -₹{appliedCoupon.discountAmount.toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : showInput ? (
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={couponCode}
+              onChange={(e) => {
+                setCouponCode(e.target.value.toUpperCase());
+                setCouponError(null);
+              }}
+              placeholder="Enter coupon code"
+              className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+              disabled={couponLoading}
+            />
+            <button
+              type="button"
+              onClick={handleApplyCoupon}
+              disabled={couponLoading || !couponCode.trim()}
+              className="px-4 py-2 bg-yellow-600 text-white rounded-lg font-medium hover:bg-yellow-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center min-w-[80px]"
+            >
+              {couponLoading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                'Apply'
+              )}
+            </button>
+          </div>
+          
+          {couponError && (
+            <p className="text-red-600 text-sm">{couponError}</p>
+          )}
+          
+          <p className="text-xs text-gray-500">
+            Enter a valid coupon code to get discount on your order
+          </p>
+        </div>
+      ) : (
+        <p className="text-gray-500 text-sm">
+          Have a promo code? Click "Add Code" to apply it to your order.
+        </p>
+      )}
+    </div>
+  );
+}
