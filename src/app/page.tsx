@@ -45,25 +45,34 @@ export default function Home() {
         <div className="flex flex-col items-center space-y-3">
           <div className="relative">
             <div className="w-12 h-12 border-3 border-gray-700 rounded-full animate-spin">
-              <div className="absolute top-0 left-0 w-12 h-12 border-3 border-transparent border-t-orange-500 rounded-full animate-spin" />
+              <div className="absolute top-0 left-0 w-12 h-12 border-3 border-transparent border-t-yellow-500 rounded-full animate-spin" />
             </div>
           </div>
-          <p className="text-orange-400 text-sm font-medium">Loading...</p>
+          <p className="text-yellow-400 text-sm font-medium">Loading...</p>
         </div>
       </div>
     );
   }
   return (
     <div className="fixed inset-0 w-full max-w-md mx-auto bg-gray-900 overflow-hidden">
-      {/* Dark textured background inspired by menu */}
+      {/* GenZ Background Image */}
       <div className="absolute inset-0">
-        {/* Subtle texture overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-gray-800 via-gray-900 to-black" />
+        <Image
+          src="/assets/images/genZ background.png"
+          alt="GenZ Cafe Background"
+          fill
+          className="object-cover"
+          priority
+          quality={100}
+        />
         
-        {/* Minimal geometric accents */}
-        <div className="absolute top-16 right-6 w-24 h-24 bg-orange-500/5 rounded-full blur-2xl" />
-        <div className="absolute bottom-24 left-8 w-20 h-20 bg-orange-400/5 rounded-full blur-xl" />
-        <div className="absolute top-1/3 left-4 w-16 h-16 bg-orange-600/5 rounded-full blur-lg" />
+        {/* Dark overlay for better text contrast */}
+        <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-black/50 to-black/70" />
+        
+        {/* Subtle geometric accents over the background */}
+        <div className="absolute top-16 right-6 w-24 h-24 bg-yellow-500/10 rounded-full blur-2xl" />
+        <div className="absolute bottom-24 left-8 w-20 h-20 bg-yellow-400/10 rounded-full blur-xl" />
+        <div className="absolute top-1/3 left-4 w-16 h-16 bg-yellow-600/10 rounded-full blur-lg" />
       </div>
 
       {/* Main Content */}
@@ -74,7 +83,7 @@ export default function Home() {
           <div className="flex justify-center mb-12">
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-800/80 backdrop-blur-sm rounded-full border border-gray-700/50">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-xs font-semibold text-orange-400 tracking-wide uppercase">Open Now</span>
+              <span className="text-xs font-semibold text-yellow-400 tracking-wide uppercase">Open Now</span>
             </div>
           </div>
 
@@ -82,7 +91,7 @@ export default function Home() {
           <div className="text-center mb-12">
             {/* Logo Container */}
             <div className="relative w-56 h-56 mx-auto mb-8 group">
-              <div className="absolute inset-0 bg-gray-800/50 backdrop-blur-sm rounded-3xl border border-gray-700/50 group-hover:bg-gray-800/70 group-hover:border-orange-500/20 transition-all duration-300" />
+              <div className="absolute inset-0 bg-gray-800/50 backdrop-blur-sm rounded-3xl border border-gray-700/50 group-hover:bg-gray-800/70 group-hover:border-yellow-500/20 transition-all duration-300" />
               <div className="relative w-full h-full p-10">
                 {/* White Logo Shadow (positioned slightly offset) */}
                 <div className="absolute inset-0 p-10 translate-x-px translate-y-px">
@@ -116,7 +125,7 @@ export default function Home() {
             <div className="space-y-4">
               <h1 className="text-3xl font-bold text-white leading-tight">
                 Cafe for the
-                <span className="block text-4xl bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
+                <span className="block text-4xl bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
                   New Generation
                 </span>
               </h1>
@@ -129,7 +138,7 @@ export default function Home() {
           {/* Hours Display */}
           <div className="text-center">
             <div className="inline-flex items-center gap-3 px-5 py-3 bg-gray-800/60 backdrop-blur-sm rounded-full border border-gray-700/50">
-              <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span className="text-sm font-medium text-gray-300">{restaurantInfo.openingHours}</span>
@@ -140,7 +149,7 @@ export default function Home() {
           <div className="flex justify-center">
             <Link 
               href="/track" 
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-800/40 backdrop-blur-sm rounded-full border border-gray-700/50 text-sm text-gray-300 hover:text-orange-400 hover:border-orange-500/30 transition-all duration-300 group"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-800/40 backdrop-blur-sm rounded-full border border-gray-700/50 text-sm text-gray-300 hover:text-yellow-400 hover:border-yellow-500/30 transition-all duration-300 group"
             >
               <svg className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -153,7 +162,7 @@ export default function Home() {
           <div className="w-full">
             <Link
               href="/menu"
-              className="group block w-full py-4 px-6 text-center bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl hover:shadow-orange-500/25 transition-all duration-300 hover:scale-[1.02]"
+              className="group block w-full py-4 px-6 text-center bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl hover:shadow-yellow-500/25 transition-all duration-300 hover:scale-[1.02]"
             >
               <span className="flex items-center justify-center gap-2">
                 Order Now
